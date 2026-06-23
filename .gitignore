@@ -1,0 +1,23 @@
+# Unreal Engine generated directories
+Binaries/
+Intermediate/
+DerivedDataCache/
+Saved/
+Build/
+
+# IDE
+.vs/
+.idea/
+*.user
+*.suo
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Secrets — NEVER commit these
+Config/NpcEngine.ini
+Saved/NpcEngine/
+
+# UE packaging output
+Releases/

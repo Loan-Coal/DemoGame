@@ -1,0 +1,85 @@
+{
+  "_comment": "Slice-1 (Tavern) seed data OWNED BY THE GAME. Replayed on first connect via POST /v1/graph/nodes/{type} ({properties:{...}}) and POST /v1/graph/edges/{type} ({src_id,dst_id,properties}). Idempotent (engine uses MERGE). Property shapes mirror the engine's own seeder (demo_game/seed.py). Slice-1 covers ONLY the tavern: player + Mira + Lira + loc_tavern. Slice-2 adds market_square / guard_barracks NPCs. Inner-life (memories/beliefs) is intentionally omitted here; if you want Mira to 'remember' the war out of the box, also seed via /v1/admin/memories/{id} or run the engine's `make demo-seed` once.",
+  "seed_order": ["locations", "factions", "characters", "edges"],
+  "locations": [
+    {
+      "node_type": "Location",
+      "properties": {
+        "id": "loc_tavern",
+        "name": "The Rusty Flagon",
+        "location_tag": "tavern",
+        "descriptor": "A well-worn tavern where travelers and locals share ale and secrets.",
+        "region": "city"
+      }
+    }
+  ],
+  "factions": [
+    {
+      "node_type": "Faction",
+      "properties": {
+        "id": "thieves_guild",
+        "name": "Thieves Guild",
+        "archetype": "criminal",
+        "description": "A shadow organization that lives in the cracks of the city.",
+        "is_active": true
+      }
+    }
+  ],
+  "characters": [
+    {
+      "node_type": "Character",
+      "properties": {
+        "id": "player_demo",
+        "name": "Traveler",
+        "archetype": "adventurer",
+        "faction": "neutral",
+        "biography": "A wandering adventurer seeking fortune.",
+        "is_player": true,
+        "is_active": true,
+        "gossipy": 50,
+        "credulity": 50,
+        "honesty": 60,
+        "currency_balance": 60
+      }
+    },
+    {
+      "node_type": "Character",
+      "properties": {
+        "id": "mira_innkeeper",
+        "name": "Mira",
+        "archetype": "innkeeper",
+        "faction": "neutral",
+        "biography": "Runs the Rusty Flagon with an even hand and a sharp ear.",
+        "is_player": false,
+        "is_active": true,
+        "gossipy": 60,
+        "credulity": 55,
+        "honesty": 70,
+        "current_mood": "neutral",
+        "voice_descriptor": "Warm, observant. Cautious about politics — never says more than she needs to. Frames hard news as rumour or second-hand."
+      }
+    },
+    {
+      "node_type": "Character",
+      "properties": {
+        "id": "lira_fence",
+        "name": "Lira",
+        "archetype": "fence",
+        "faction": "thieves_guild",
+        "biography": "Moves stolen goods with a smile and a story, always one step ahead.",
+        "is_player": false,
+        "is_active": true,
+        "gossipy": 75,
+        "credulity": 45,
+        "honesty": 30,
+        "current_mood": "neutral",
+        "voice_descriptor": "Light, deflective. Turns every question into a joke or a counter-question. Never volunteers information."
+      }
+    }
+  ],
+  "edges": [
+    { "edge_type": "LOCATED_AT", "src_id": "mira_innkeeper", "dst_id": "loc_tavern", "properties": { "is_permanent_resident": true } },
+    { "edge_type": "LOCATED_AT", "src_id": "lira_fence", "dst_id": "loc_tavern", "properties": { "is_permanent_resident": true } },
+    { "edge_type": "MEMBER_OF", "src_id": "lira_fence", "dst_id": "thieves_guild", "properties": { "role": "member", "status": "active" } }
+  ]
+}
