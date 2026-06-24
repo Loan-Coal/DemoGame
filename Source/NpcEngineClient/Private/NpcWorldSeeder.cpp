@@ -33,7 +33,7 @@ static constexpr float SEED_HTTP_TIMEOUT_SECS = 10.f;
 
 void UNpcWorldSeeder::SeedWorld(TFunction<void()> OnComplete, TFunction<void(const FString&)> OnError)
 {
-    const FString SeedPath = FPaths::ProjectDir() / TEXT("Content/Seed/DemoWorld_v1.json");
+    const FString SeedPath = FPaths::ProjectDir() / TEXT("Seed/DemoWorld_v1.json");
     FString Json;
     if (!FFileHelper::LoadFileToString(Json, *SeedPath))
     {
@@ -424,6 +424,6 @@ namespace
 
 static FAutoConsoleCommandWithWorld GNpcEngineSeedWorldCommand(
     TEXT("NpcEngine.SeedWorld"),
-    TEXT("Seed the full demo world from Content/Seed/DemoWorld_v1.json. "
+    TEXT("Seed the full demo world from Seed/DemoWorld_v1.json. "
          "Idempotent: existing nodes are skipped. Halts on first non-2xx."),
     FConsoleCommandWithWorldDelegate::CreateStatic(&RunNpcEngineSeedWorld));

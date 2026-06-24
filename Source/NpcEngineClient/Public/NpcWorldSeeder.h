@@ -1,6 +1,6 @@
 // File: NpcWorldSeeder.h
 // Module: NpcEngineClient
-// Purpose: Seeds the full demo world from Content/Seed/DemoWorld_v1.json with idempotency checks.
+// Purpose: Seeds the full demo world from Seed/DemoWorld_v1.json with idempotency checks.
 // Net I/O: yes
 
 #pragma once
@@ -24,7 +24,7 @@ using FNpcSeederHttpExec = TFunction<void(
 /**
  * World seeder for DemoGame.
  *
- * Reads Content/Seed/DemoWorld_v1.json and upserts every node and edge against the NPC Engine
+ * Reads Seed/DemoWorld_v1.json and upserts every node and edge against the NPC Engine
  * REST graph endpoints. Each node upsert is preceded by a CheckNodeExists GET; if the node
  * already exists the upsert is skipped and the id is logged as "Skipped". Any non-2xx response
  * halts the seeder and fires OnError — unlike UNpcEngineSeedClient which continues on failure.
@@ -45,7 +45,7 @@ class NPCENGINECLIENT_API UNpcWorldSeeder : public UObject
 
 public:
     /**
-     * Load Content/Seed/DemoWorld_v1.json and replay all nodes + edges with idempotency checks.
+     * Load Seed/DemoWorld_v1.json and replay all nodes + edges with idempotency checks.
      * Halts and fires OnError on the first non-2xx response; does not continue on failure.
      * Non-blocking: returns immediately; callbacks fire on the game thread.
      */

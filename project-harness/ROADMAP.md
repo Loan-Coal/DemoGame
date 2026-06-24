@@ -144,13 +144,13 @@ fails for the right reason, implement minimal to pass, refactor green. Gameplay 
 **Prerequisites:** Phase 2 (INpcDialogueService interface stable; world subsystem in place).
 **Quality gate:** `pwsh Scripts/check.ps1 -WithBuild -WithTests`
 
-- [x] **Reconcile tavern name conflict** — chosen: **"The Broken Flagon"** (DEC-017). `docs/STORYBOARD.md` updated. Propagated to `Content/Seed/DemoWorld_v1.json`. Town name "Thornfield" used throughout. *(2026-06-24)*
+- [x] **Reconcile tavern name conflict** — chosen: **"The Broken Flagon"** (DEC-017). `docs/STORYBOARD.md` updated. Propagated to `Seed/DemoWorld_v1.json`. Town name "Thornfield" used throughout. *(2026-06-24)*
 - [x] Write failing Automation Specs for `UNpcWorldSeeder` (NpcEngineClient/Tests, Net I/O: yes): *(2026-06-24)*
   - [x] Seeder calls `CheckNodeExists` before each `UpsertNode`; skips the upsert when node exists (idempotency)
   - [x] Seeder processes Location nodes before Character nodes; Faction nodes before edge upserts (dependency order enforced)
   - [x] Seeder halts and logs on any non-2xx response; does not silently continue
   - [x] All upserts are non-blocking: return immediately; callbacks fire on game thread
-- [x] Author `Content/Seed/DemoWorld_v1.json` — single source of truth for all demo content: *(2026-06-24)*
+- [x] Author `Seed/DemoWorld_v1.json` — single source of truth for all demo content: *(2026-06-24)*
   - [x] **Location nodes** (node_type `Location`): `loc_tavern` (The Broken Flagon), `loc_tavern_back`, `loc_market_square`, `loc_guard_barracks`. Town name "Thornfield" in all descriptors.
   - [x] **Character nodes** — all 5 NPCs with exact personality values from §7.3:
     - `mira_innkeeper`: gossipy=82, credulity=60, honesty=55; `is_player=false`, `is_active=true`
