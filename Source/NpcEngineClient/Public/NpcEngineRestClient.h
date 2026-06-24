@@ -70,6 +70,17 @@ public:
         TFunction<void(const FString& /*DataJson*/)> OnResult,
         FOnNpcEngineError OnError) override;
 
+    /**
+     * POST /clock/advance  (envelope shape B). DEC-014.
+     * Body: { "delta_ticks": DeltaTicks }.
+     * OnResult(true) on 2xx; OnResult(false) + OnError on non-2xx or parse failure.
+     * Non-blocking — returns immediately; callback fires on the game thread.
+     */
+    virtual void AdvanceClock(
+        int32 DeltaTicks,
+        TFunction<void(bool /*bSuccess*/)> OnResult,
+        FOnNpcEngineError OnError) override;
+
     // ── Client-side fallback ─────────────────────────────────────────────────
 
     static const FString FallbackLine;   // "...(seems distracted and doesn't respond.)"

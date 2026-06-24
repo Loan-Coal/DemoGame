@@ -67,3 +67,18 @@ new entry that references the old one.
 **Date:** 2026-06-23
 **Decision:** The engine's closed sets (action type, expression type) are mirrored as `UENUM`s. An unknown incoming string logs a warning and falls back to a safe default (`speak` / `neutral`) — never crashes, never drops the message.
 **Why:** Type safety for known values plus graceful handling when the engine adds a value the client doesn't know yet.
+
+## DEC-014: /clock/advance endpoint shape
+**Date:** 2026-06-24
+**Decision:** `POST /clock/advance` body is `{ "delta_ticks": <int> }`. The OkEnvelope wrapper applies (shape B). Optional fields `game_time_seconds` and `advance_time_field` are NOT sent — the engine accepts the minimal body. Response `.data` is checked for presence; a non-2xx or missing `.data` → `false` returned + error logged. This shape was resolved per §13 OQ-2 in the game design roadmap. Live verification against `GET http://localhost:8000/openapi.json` should be performed before merging to confirm the endpoint still exists and the body schema has not changed.
+**Why:** The endpoint is not in the curated `docs/openapi.json` (game-side subset). Recording the confirmed shape here so all implementers use the same body and do not rely on memory.
+
+## DEC-016: ANpcLocation owns its own overlap — not the player character
+**Date:** 2026-06-24
+**Decision:** `ANpcLocation::BeginPlay()` registers `OnComponentBeginOverlap` on its own `TriggerVolume`. The handler checks that the overlapping actor is a player-controlled pawn, then calls `UNpcWorldSubsystem::OnPlayerArrived`. The player character (`ADemoGameCharacter`) is not modified.
+**Why:** The ROADMAP described "player character registers with each ANpcLocation trigger volume" as the intended outcome. Implementing it on the location actor is equivalent in result, avoids an actor-iteration race condition (character constructed before locations exist), follows SRP (location actor owns its own trigger), and avoids modifying an actor that doesn't need to change.
+
+## DEC-015: AdvanceClock added to INpcDialogueService (ISP note)
+**Date:** 2026-06-24
+**Decision:** `AdvanceClock(int32 DeltaTicks, TFunction<void(bool)> OnResult, FOnNpcEngineError OnError)` is added as a pure virtual to `INpcDialogueService`. The `UNpcWorldSubsystem` (DemoGame) calls it through the interface. The method signature follows the same async+callback pattern as the other interface methods. ISP note: the interface now carries one world-clock method alongside the dialogue methods. If a future consumer needs only clock ticks (e.g. a dedicated time subsystem with no dialogue), split off an `INpcWorldService` interface at that point. Do not split preemptively — one extra method does not violate ISP in practice.
+**Why:** `UNpcWorldSubsystem` must advance the clock on player arrival without depending on the concrete `UNpcEngineRestClient`. Adding it to the existing interface is the minimal change. Splitting for hypothetical future consumers would be premature abstraction.

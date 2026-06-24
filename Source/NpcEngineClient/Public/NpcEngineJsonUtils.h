@@ -32,6 +32,9 @@ public:
     static FString SerialiseDialogueRequest(const FNpcDialogueRequest& Req);
     static FString SerialiseActionReportRequest(const FNpcActionReportRequest& Req);
 
+    /** Serialise the /clock/advance request body: { "delta_ticks": DeltaTicks }. DEC-014. */
+    static FString SerialiseClockAdvance(int32 DeltaTicks);
+
     /**
      * Serialise a seed node body: { "properties": { ... } }
      * The properties object is passed in as an already-serialised JSON string.

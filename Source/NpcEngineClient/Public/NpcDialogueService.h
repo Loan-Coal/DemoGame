@@ -57,4 +57,15 @@ public:
         const FString& NpcId,
         TFunction<void(const FString& /*DataJson*/)> OnResult,
         FOnNpcEngineError OnError) = 0;
+
+    /**
+     * POST /clock/advance  (envelope shape B). DEC-014 + DEC-015.
+     * Body: { "delta_ticks": DeltaTicks }.
+     * OnResult(true) on 2xx; OnResult(false) + OnError on non-2xx or missing envelope.
+     * Non-blocking — returns immediately; callback fires on the game thread.
+     */
+    virtual void AdvanceClock(
+        int32 DeltaTicks,
+        TFunction<void(bool /*bSuccess*/)> OnResult,
+        FOnNpcEngineError OnError) = 0;
 };

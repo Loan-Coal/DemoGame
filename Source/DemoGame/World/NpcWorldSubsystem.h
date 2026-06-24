@@ -1,0 +1,78 @@
+// File: NpcWorldSubsystem.h
+// Module: DemoGame
+// Purpose: Tracks player location; fires clock-advance ticks through INpcDialogueService on arrival.
+// Net I/O: no
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Subsystems/WorldSubsystem.h"
+#include "NpcDialogueService.h"
+#include "NpcWorldSubsystem.generated.h"
+
+/** Broadcasts when a clock tick fires (location changed, bFiresTick=true, clock advance succeeded). */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
+    FOnTickAdvanced,
+    FName,  NewLocationId,
+    int32,  TickCount);
+
+/**
+ * World subsystem that tracks which named location the player is currently in and fires
+ * a clock-advance tick through INpcDialogueService when the player moves to a new location.
+ *
+ * Locations with bFiresTick=false (e.g. loc_tavern_back) update CurrentLocationId but do
+ * not call AdvanceClock and do not broadcast OnTickAdvanced.
+ *
+ * Re-entry guard: arriving at the same location twice has no effect.
+ */
+UCLASS()
+class DEMOGAME_API UNpcWorldSubsystem : public UWorldSubsystem
+{
+    GENERATED_BODY()
+
+public:
+    // ── Lifecycle ────────────────────────────────────────────────────────────
+
+    virtual void Initialize(FSubsystemCollectionBase& Collection) override;
+    virtual void Deinitialize() override;
+
+    // ── Public API ───────────────────────────────────────────────────────────
+
+    /**
+     * Called by ANpcLocation when the player overlaps its trigger.
+     *
+     * @param LocationId  The FName constant for the location (e.g. "loc_tavern").
+     * @param bFiresTick  If false, location is recorded but no clock advance is fired.
+     */
+    void OnPlayerArrived(FName LocationId, bool bFiresTick);
+
+    /** Current FName location of the player. NAME_None until first arrival. */
+    UFUNCTION(BlueprintPure, Category = "World|Location")
+    FName GetCurrentLocationId() const { return CurrentLocationId; }
+
+    /** Number of successful clock-advance ticks since session start. */
+    UFUNCTION(BlueprintPure, Category = "World|Location")
+    int32 GetTickCount() const { return TickCount; }
+
+    /**
+     * Inject the dialogue service (DIP seam). Overrides lazy resolution from the
+     * GameInstance composition root — for tests and explicit wiring.
+     */
+    void SetDialogueService(TScriptInterface<INpcDialogueService> InService);
+
+    // ── Delegates ────────────────────────────────────────────────────────────
+
+    /** Fires after each successful clock advance tick. Bind UArrivalSubtitleWidget here. */
+    UPROPERTY(BlueprintAssignable, Category = "World|Location")
+    FOnTickAdvanced OnTickAdvanced;
+
+private:
+    /** Lazily resolved from UNpcEngineServiceSubsystem, or injected by tests. */
+    UPROPERTY()
+    TScriptInterface<INpcDialogueService> DialogueService;
+
+    FName CurrentLocationId;
+    int32 TickCount = 0;
+
+    INpcDialogueService* ResolveService();
+};

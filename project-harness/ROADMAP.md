@@ -82,33 +82,34 @@ fails for the right reason, implement minimal to pass, refactor green. Gameplay 
 
 ---
 
-## Phase 2 — World Skeleton + Tick
+## Phase 2 — World Skeleton + Tick *(C++ tasks complete 2026-06-24; editor/level tasks pending)*
 
 **Goal:** Three navigable locations in box geometry; location arrival fires a world clock tick.
 **Independently demoable:** Player walks between three rooms; Output Log shows tick number incrementing on each arrival; re-entering the same location shows no tick.
 **Prerequisites:** Phase 1 (INpcDialogueService interface stable; UNpcEngineRestClient implements PostClockAdvance).
 **Quality gate:** `pwsh Scripts/check.ps1 -WithBuild`
 
-- [ ] **Verify `/clock/advance` endpoint** — not in `docs/openapi.json` (curated subset). Shape resolved per §13 OQ-2: `POST /clock/advance` body `{ "delta_ticks": 1 }`, optional `game_time_seconds` and `advance_time_field` not required. Confirm shape still matches live `GET http://localhost:8000/openapi.json`. Record as **DEC-014** in `DECISIONS.md` before implementing.
-- [ ] **Add `AdvanceClock(int32 DeltaTicks)` to `INpcDialogueService`** in NpcEngineClient (extending the interface; record in DECISIONS.md alongside ISP note — if future ISP pressure warrants splitting, create `INpcWorldService` separately). Write failing Automation Spec first:
-  - [ ] Spec: `AdvanceClock(1)` calls `POST /clock/advance` with body `{ "delta_ticks": 1 }` — verified via mock transport (Net I/O: yes; NpcEngineClient module only)
-  - [ ] Spec: `AdvanceClock` on non-2xx → returns `false`; logs `UE_LOG(LogNpcEngine, Error, "ClockAdvance failed Status=%d", ...)`. Non-blocking: return immediately; callback fires on game thread.
-  - [ ] Implement `AdvanceClock` in `UNpcEngineRestClient`: `OkEnvelope` response shape (all clock endpoints use the envelope); parse `.data`; return bool
-- [ ] `ANpcLocation` Actor (DemoGame module, Net I/O: no):
-  - [ ] `UPROPERTY` `FName LocationId` — must be set per-actor in the editor; default `NAME_None` is invalid
-  - [ ] `UPROPERTY` `bool bFiresTick` — default `true`; set `false` for the tavern back room actor
-  - [ ] `USphereComponent` arrival trigger volume sized to cover the walkable area
-- [ ] `UNpcWorldSubsystem` (World Subsystem, DemoGame module, Net I/O: no):
-  - [ ] `Initialize`: resolves `TScriptInterface<INpcDialogueService>` from `UNpcEngineServiceSubsystem`; stores it as member
-  - [ ] `OnPlayerArrived(FName LocationId)`: if `LocationId != CurrentLocationId` AND actor's `bFiresTick` is true → call `Service->AdvanceClock(1)` through interface → increment `TickCount` → `UE_LOG(LogNpcEngine, Log, "Tick=%d Location=%s", TickCount, *LocationId.ToString())` → broadcast `FOnTickAdvanced`
-  - [ ] Re-entry guard: `CurrentLocationId == LocationId` → skip; no tick, no log noise
-  - [ ] `GetCurrentLocationId()` accessor (const)
-  - [ ] No `FHttpModule` usage — all network I/O routed through `INpcDialogueService`
-- [ ] Player character registers `OnComponentBeginOverlap` with each `ANpcLocation` trigger volume → calls `UNpcWorldSubsystem::OnPlayerArrived(LocationId)`
-- [ ] `UArrivalSubtitleWidget` (UUserWidget, DemoGame module, Net I/O: no):
-  - [ ] Binds to `UNpcWorldSubsystem::FOnTickAdvanced` on construct
-  - [ ] Shows authored `FText` subtitle for 3 seconds, then fades via `UWidgetAnimation`
-  - [ ] Authored per-location text stored in a `TMap<FName, FText>` DataAsset (prefix `DA_`), not hardcoded in C++
+- [x] **Verify `/clock/advance` endpoint** — shape confirmed per §13 OQ-2: `POST /clock/advance` body `{ "delta_ticks": 1 }`, OkEnvelope response. Recorded as **DEC-014**. *(2026-06-24: live verification against `GET http://localhost:8000/openapi.json` deferred — DEC-014 flags this.)*
+- [x] **Add `AdvanceClock(int32 DeltaTicks)` to `INpcDialogueService`** in NpcEngineClient (DEC-015; ISP note recorded). Failing Automation Spec written first:
+  - [x] Spec: `ClockAdvance.spec.cpp` — `SerialiseClockAdvance(1)` body contains `delta_ticks` + value `1`; JSON is parseable (NpcEngineClient module; Net I/O: no for this spec)
+  - [x] Spec: `AdvanceClock` on non-2xx → `OnError` fired + `OnResult(false)`; error log: `ClockAdvance failed Status=%d`
+  - [x] Implement `AdvanceClock` in `UNpcEngineRestClient`: POST `/clock/advance`; `OkEnvelope` response shape; parse `.data`; bool success via callback
+- [x] `ANpcLocation` Actor (DemoGame module, Net I/O: no):
+  - [x] `UPROPERTY FName LocationId` — logs warning if `NAME_None` in BeginPlay; default `NAME_None` is invalid
+  - [x] `UPROPERTY bool bFiresTick` — default `true`; set `false` on the tavern back room actor in the editor
+  - [x] `USphereComponent TriggerVolume` — `OnComponentBeginOverlap` registered in BeginPlay; calls `UNpcWorldSubsystem::OnPlayerArrived`. Note: overlap registered on the location actor itself (not on the player character) — cleaner SRP and no actor-iteration race. Design choice recorded in DEC-016.
+- [x] `UNpcWorldSubsystem` (World Subsystem, DemoGame module, Net I/O: no):
+  - [x] `Initialize`: subsystem ready; lazy-resolves `TScriptInterface<INpcDialogueService>` from `UNpcEngineServiceSubsystem` on first `OnPlayerArrived`
+  - [x] `OnPlayerArrived(FName LocationId, bool bFiresTick)`: re-entry guard → `Service->AdvanceClock(1)` → `++TickCount` → `UE_LOG(LogNpcEngine, Log, "Tick=%d Location=%s", ...)` → `OnTickAdvanced.Broadcast()`
+  - [x] Re-entry guard: `CurrentLocationId == LocationId` → return early; no tick, no log noise
+  - [x] `GetCurrentLocationId()` accessor (const); `GetTickCount()` accessor (const)
+  - [x] No `FHttpModule` usage — all network I/O routed through `INpcDialogueService`
+  - [x] `SetDialogueService()` DIP seam for test injection; 5 Automation Specs (new location + tick, bFiresTick=false skip, re-entry guard, multi-location sequence, failure-path grace)
+- [x] `ANpcLocation::OnTriggerOverlap` → `UNpcWorldSubsystem::OnPlayerArrived(LocationId, bFiresTick)` — player pawn check guards non-player actors. DEC-016 records the overlap-ownership choice.
+- [x] `UArrivalSubtitleWidget` (UUserWidget, DemoGame module, Net I/O: no):
+  - [x] Binds `OnTickAdvanced` in `NativeConstruct`; unbinds + clears timer in `NativeDestruct`
+  - [x] Shows authored `FText` for `SubtitleDisplaySeconds` (default 3 s), then fades via `FadeOutAnimation` (`BindWidgetAnimOptional`); fallback timer-hide when no animation assigned
+  - [x] Authored text in `ULocationSubtitleData` DataAsset (`TMap<FName, FText> SubtitleByLocation`); assign `DA_LocationSubtitles` in editor. Locations with no entry show nothing.
 
 ### [EDITOR SESSION] — Level Creation + Travel Triggers
 

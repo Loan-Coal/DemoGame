@@ -55,4 +55,26 @@ public:
     {
         OnResult(TEXT("{}"));
     }
+
+    // ── AdvanceClock ─────────────────────────────────────────────────────────
+
+    /** Captured state for AdvanceClock tests. */
+    int32 AdvanceClockCallCount = 0;
+    int32 LastDeltaTicks        = 0;
+    bool  bAdvanceClockSucceeds = true;
+
+    virtual void AdvanceClock(
+        int32 DeltaTicks,
+        TFunction<void(bool)> OnResult,
+        FOnNpcEngineError OnError) override
+    {
+        LastDeltaTicks = DeltaTicks;
+        ++AdvanceClockCallCount;
+        if (bAdvanceClockSucceeds) { OnResult(true); }
+        else
+        {
+            OnError.ExecuteIfBound(TEXT("fake clock error"));
+            OnResult(false);
+        }
+    }
 };

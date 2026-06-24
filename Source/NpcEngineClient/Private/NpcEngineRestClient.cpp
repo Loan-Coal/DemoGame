@@ -203,6 +203,38 @@ void UNpcEngineRestClient::GetReadiness(TFunction<void(bool)> OnResult)
     Request->ProcessRequest();
 }
 
+void UNpcEngineRestClient::AdvanceClock(
+    int32 DeltaTicks,
+    TFunction<void(bool)> OnResult,
+    FOnNpcEngineError OnError)
+{
+    const FString Body = FNpcEngineJsonUtils::SerialiseClockAdvance(DeltaTicks);
+    const FString Url  = BuildUrl(TEXT("/clock/advance"));
+
+    MakeAuthRequest(TEXT("POST"), Url, Body, 10.f,
+        [OnResult, OnError](int32 Status, const FString& ResponseBody)
+        {
+            if (Status != 200)
+            {
+                UE_LOG(LogNpcEngine, Error,
+                    TEXT("AdvanceClock failed Status=%d"), Status);
+                OnError.ExecuteIfBound(FString::Printf(
+                    TEXT("ClockAdvance failed Status=%d"), Status));
+                OnResult(false);
+                return;
+            }
+            TSharedPtr<FJsonObject> Data;
+            const bool bOk = FNpcEngineJsonUtils::UnwrapEnvelopeData(ResponseBody, Data);
+            if (!bOk)
+            {
+                UE_LOG(LogNpcEngine, Error,
+                    TEXT("AdvanceClock: envelope parse failed. Body=%s"), *ResponseBody);
+                OnError.ExecuteIfBound(TEXT("ClockAdvance: envelope parse failed."));
+            }
+            OnResult(bOk);
+        });
+}
+
 void UNpcEngineRestClient::GetNpcState(
     const FString& NpcId,
     TFunction<void(const FString&)> OnResult,

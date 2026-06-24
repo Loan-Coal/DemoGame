@@ -248,6 +248,17 @@ FString FNpcEngineJsonUtils::SerialiseEdgeWrite(
     return Out;
 }
 
+FString FNpcEngineJsonUtils::SerialiseClockAdvance(int32 DeltaTicks)
+{
+    TSharedRef<FJsonObject> Obj = MakeShared<FJsonObject>();
+    Obj->SetNumberField(TEXT("delta_ticks"), DeltaTicks);
+
+    FString Out;
+    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Out);
+    FJsonSerializer::Serialize(Obj, Writer);
+    return Out;
+}
+
 // ── TTS stub ─────────────────────────────────────────────────────────────────
 
 bool FNpcEngineJsonUtils::ParseTTSAudio(const FString& /*Base64Wav*/, TArray<uint8>& Out)
