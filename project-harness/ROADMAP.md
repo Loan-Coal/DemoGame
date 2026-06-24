@@ -234,8 +234,8 @@ fails for the right reason, implement minimal to pass, refactor green. Gameplay 
 **Prerequisites:** Phase 4 (Mira trust gate functional; INpcDialogueService interface stable).
 **Quality gate:** `pwsh Scripts/check.ps1 -WithBuild -WithTests`
 
-- [ ] **Add DEC-NNN to `DECISIONS.md` first:** Document what `USaveGame` persists (`player_id`, active quest step list (`TArray<FQuestStepState>` with quest_id + step_id + completion bool), faction standings (`TMap<FName, int32>`)). Document save triggers: quest step completion, faction choice, session end (application quit). Resolve in DECISIONS.md before writing any save code.
-- [ ] **Verify quest lifecycle endpoint shapes** against live `GET http://localhost:8000/openapi.json` (not in curated `docs/openapi.json`; resolved per §13 OQ-1 — confirm still match):
+- [x] **Add DEC-025/026/027/028 to `DECISIONS.md`:** USaveGame persistence contract (DEC-025), INpcQuestService ISP split (DEC-026), quest endpoint shapes from ROADMAP docs (DEC-027), greybox quest data as C++ constants (DEC-028). *(2026-06-24)*
+- [ ] **Verify quest lifecycle endpoint shapes** against live `GET http://localhost:8000/openapi.json` (not in curated `docs/openapi.json`; resolved per §13 OQ-1 — confirm still match) *(human — see HUMAN_VERIFICATION.md)*:
   - `POST /v1/quest/offer` body: `{ "quest_id", "player_id", "title", "objectives": [{"objective_id","description","required_progress":1}], "item_rewards":[], "currency_reward":null }`
   - `POST /v1/quest/accept` body: `{ "quest_id", "player_id" }`
   - `POST /v1/quest/objective` body: `{ "quest_id", "player_id", "objective_id", "progress_delta":1 }`
@@ -253,7 +253,7 @@ fails for the right reason, implement minimal to pass, refactor green. Gameplay 
   - [ ] All calls: non-blocking; callback fires on game thread
   - [ ] All calls: non-2xx → `UE_LOG(LogNpcEngine, Error, …)` + return false; never crash
 - [ ] Implement quest lifecycle in `UNpcEngineRestClient`. All HTTP stays in NpcEngineClient; all USTRUCT types (`FQuestOfferRequest`, `FQuestObjectiveRequest`) defined in NpcEngineClient.
-- [ ] **Author fallback lines for Aldric and Captain Sorn** in `DA_NpcFallbackLines`. Keys are NPC ID FName constants.
+- [ ] **Author fallback lines for Aldric and Captain Sorn** in `DA_NpcFallbackLines`. Keys are NPC ID FName constants. *(human — see HUMAN_VERIFICATION.md)*
 - [ ] `UQuestSubsystem` (World Subsystem, DemoGame module, Net I/O: no):
   - [ ] `Initialize`: resolves service interface from `UNpcEngineServiceSubsystem`
   - [ ] `ActivateQuest(FName QuestId)`: adds to active list; calls `QuestOffer` + `QuestAccept` through service interface; broadcasts `OnQuestActivated(FName QuestId)`
@@ -275,7 +275,7 @@ fails for the right reason, implement minimal to pass, refactor green. Gameplay 
   - [ ] On first run (no save file): initialize defaults (player_demo id, no active quests, all faction standings = 0)
   - [ ] On game startup with existing save: load; call `Service->CheckNodeExists("Character", SavedPlayerId)` through interface; if node not found → call `UNpcWorldSeeder` before first dialogue (handles engine restart + volume wipe edge case, per §13 OQ-3)
   - [ ] Save triggers: quest step completion, faction choice, session end (quit). Each trigger is an explicit task — not implicit.
-- [ ] Verify chain A end-to-end: fresh save → investigate Mira → identify Aldric through 2+ NPC conversations (no waypoint) → deliver or sell → quest log shows `deliver_amulet` complete → `aldric_confession` step appears → faction standing change logged to Output Log.
+- [ ] Verify chain A end-to-end: fresh save → investigate Mira → identify Aldric through 2+ NPC conversations (no waypoint) → deliver or sell → quest log shows `deliver_amulet` complete → `aldric_confession` step appears → faction standing change logged to Output Log. *(human — see HUMAN_VERIFICATION.md)*
 
 ### [EDITOR SESSION] — NPC Placement + Quest Log Widget
 

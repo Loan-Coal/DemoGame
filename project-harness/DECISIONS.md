@@ -3,6 +3,45 @@
 Append-only. Each entry: context, decision, rationale. Never edit a past decision — supersede it with a
 new entry that references the old one.
 
+## DEC-028: Greybox quest metadata as C++ constants (no DataAsset for Phase 5)
+**Date:** 2026-06-24
+**Context:** Quest titles and objectives need to be authored somewhere for the greybox demo. DataAsset authoring requires the Unreal Editor. `DemoWorld_v1.json` already contains quest node objects with `objectives` arrays. Phase 5 C++ work must be headless.
+**Decision:** Quest display metadata (titles, objective descriptions) defined as static `const TCHAR*` constants in `QuestSubsystem.cpp`, keyed by quest_id `FName`. `UQuestSubsystem` looks up a static map in the .cpp — no cross-TU link dependency. If a quest_id is absent from the map, the subsystem falls back to a generic `"Quest"` title. DataAsset authoring (`DA_QuestMetadata`) deferred to Phase 9 (content polish).
+**Rationale:** Unblocks headless implementation without requiring an editor session. The seed JSON already defines quest nodes so the engine side is complete; this is purely a display-name authoring concern. See also DEC-026.
+
+## DEC-027: Quest lifecycle endpoint shapes from ROADMAP documentation (pending live verification)
+**Date:** 2026-06-24
+**Context:** Phase 5 ROADMAP §OQ-1 documents quest endpoint shapes. Live verification against `GET http://localhost:8000/openapi.json` is deferred to the Phase 5 editor session (human gate).
+**Decision:** Implement quest methods using shapes as documented in ROADMAP Phase 5 preamble:
+- `POST /v1/quest/offer` — body: `{ quest_id, player_id, title, objectives: [{objective_id, description, required_progress:1}], item_rewards:[], currency_reward:null }`
+- `POST /v1/quest/accept` — body: `{ quest_id, player_id }`
+- `POST /v1/quest/objective` — body: `{ quest_id, player_id, objective_id, progress_delta:1 }`
+- `POST /v1/quest/evaluate` — body: `{ quest_id, player_id }`
+- `POST /v1/quest/reward` — body: `{ quest_id, player_id }`
+- `POST /v1/quest/{quest_id}/choose` — URL path param: `quest_id`; body: `{ player_id, choice_id }`
+All use OkEnvelope response shape (shape B). Non-2xx → `UE_LOG + OnResult(false)`.
+**Live verification:** Assigned to HUMAN_VERIFICATION.md Phase 5 tasks. If shapes differ, patch `NpcQuestTypes.h` serializers without touching the interface signatures.
+**Rationale:** Unblocks headless C++ implementation. Interface signatures are stable even if field names shift.
+
+## DEC-026: INpcQuestService as separate UInterface (ISP split from INpcDialogueService)
+**Date:** 2026-06-24
+**Context:** Phase 5 adds 6 quest lifecycle methods. Adding them to `INpcDialogueService` would require every test double (`UFakeNpcDialogueService`) and gameplay consumer to implement all 10 methods, even in dialogue-only contexts.
+**Decision:** Create `INpcQuestService` (new `UInterface` in `NpcEngineClient/Public/NpcQuestService.h`). `UNpcEngineRestClient` implements both `INpcDialogueService` and `INpcQuestService`. `UNpcEngineServiceSubsystem` exposes `GetQuestService()` returning `TScriptInterface<INpcQuestService>`. Quest-aware gameplay systems (QuestSubsystem, FactionSubsystem) resolve via `GetQuestService()`; dialogue-only systems continue to resolve `GetDialogueService()`.
+**Rationale:** ISP (strict) — small, focused interfaces. Test doubles remain minimal. `UFakeNpcDialogueService` unchanged. A new `UFakeNpcQuestService` serves quest-only tests.
+
+## DEC-025: USaveGame persistence contract for Phase 5
+**Date:** 2026-06-24
+**Context:** Phase 5 requires save/restore of quest and faction state across game sessions.
+**Decision:** `UNpcSaveGame` (`USaveGame` subclass, DemoGame module) persists:
+- `FString PlayerId` — slice-1 default: `"player_demo"`
+- `TArray<FQuestStepState> ActiveSteps` — each step has `FString QuestId`, `FString StepId`, `bool bCompleted`
+- `TMap<FName, int32> FactionStandings` — keyed by faction `FName` constant (e.g. `FactionId::ThievesGuild`)
+- Save slot name: `"NpcSave"`. User index: `0`.
+- Save triggers: quest step completion, faction choice, application quit. Each is an explicit `UNpcSaveGame::SaveGame()` call — no implicit auto-save.
+- On first run (no save file): `PlayerId = "player_demo"`, empty `ActiveSteps`, all standings = 0.
+- On startup with existing save: load, then `CheckNodeExists("Character", PlayerId)` via `INpcDialogueService`. If node missing → run `UNpcWorldSeeder` before first dialogue (handles engine restart + graph wipe edge case, §OQ-3).
+**Rationale:** Minimal scope for slice-1/2 demo. Player identity + quest progress + faction state are the only fields that must survive engine restart.
+
 ## DEC-024: UNpcFallbackLinesAsset moved from NpcEngineClient to DemoGame
 **Date:** 2026-06-24
 **Context:** Phase 1 ROADMAP placed `UNpcFallbackLinesAsset` in `NpcEngineClient/Public/` because the original intent was for the REST client to handle its own fallback lookup. Phase 4 changed the design: `UDialogueComponent` (DemoGame) owns the error path and does the fallback lookup. Leaving the asset in `NpcEngineClient` caused `UDialogueComponent.h` to expose an `NPCENGINECLIENT_API` type as a `UPROPERTY` — a module boundary violation (cpp-reviewer CRITICAL-1).

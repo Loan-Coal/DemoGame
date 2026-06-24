@@ -51,3 +51,36 @@ that produced them. The C++ they depend on is already committed and building.
 **Why these need the editor:** <one line>
 - [ ] <exact editor step copied from ROADMAP [EDITOR SESSION] block>
 -->
+
+## Phase 5 — Quest System + Faction Fork (editor session)
+
+**C++ status:** ✅ complete and committed (`feat(phase5)`). QuestSubsystem, FactionSubsystem, NpcSaveGame, QuestLogWidget, QuestConfirmWidget, FactionForkWidget, NpcWorldSubsystem trust gate all committed.
+**Why these need the editor:** Live endpoint verification, fallback line authoring, NPC capsule placement, WBP widget layout, trust-gate PIE test.
+
+- [ ] **Verify quest lifecycle endpoint shapes** — run `GET http://localhost:8000/openapi.json` in a browser or via curl. Confirm the 6 shapes from DEC-027 match the live engine. If any field name differs, update `NpcQuestTypes.h` and the matching serializer in `NpcEngineJsonUtils.cpp`. Record confirmation (or patch notes) in DECISIONS.md as a DEC-027 update.
+- [ ] **Author fallback lines for Aldric and Captain Sorn** in `DA_NpcFallbackLines`. Open the asset (Content Browser → find `DA_NpcFallbackLines`), add two `FallbackLineByNpcId` entries:
+  - Key `aldric_merchant` → *"…Aldric glances away nervously and doesn't reply."*
+  - Key `captain_sorn` → *"…Sorn nods crisply but says nothing more."*
+- [ ] **Place Slice-2 NPC capsules:**
+  - `BP_NPC_Aldric` (parent `NpcActorBase`): `NpcId = aldric_merchant` FName constant, `DisplayName = "Aldric"`, `LocationId = loc_market_square`, placed in `L_MarketSquare`
+  - `BP_NPC_Sorn` (parent `NpcActorBase`): `NpcId = captain_sorn` FName constant, `DisplayName = "Captain Sorn"`, `LocationId = loc_guard_barracks`, placed in `L_GuardBarracks`
+  - `BP_NPC_Henryk` (parent `NpcActorBase`): `NpcId = old_henryk` FName constant, `DisplayName = "Old Henryk"`, `LocationId = loc_market_square`, placed in `L_MarketSquare`
+- [ ] **Create `WBP_QuestLog`** — Widget Blueprint, parent class `QuestLogWidget`. Add a Vertical Box named exactly `QuestList` (`BindWidget`). No Blueprint logic needed — C++ base handles population on `OnQuestActivated`.
+- [ ] **Create `WBP_QuestConfirm`** — Widget Blueprint, parent class `QuestConfirmWidget`. Add:
+  - Text Block named `QuestTitleText` (`BindWidget`)
+  - Button named `AcceptButton` (`BindWidget`) → calls `NativeOnAccept()`
+  - Button named `DeclineButton` (`BindWidget`) → calls `NativeOnDecline()`
+- [ ] **Create `WBP_FactionFork`** — Widget Blueprint, parent class `FactionForkWidget`. Add:
+  - Button named `ChoiceAButton` (`BindWidget`)
+  - Button named `ChoiceBButton` (`BindWidget`)
+  - Text Block named `ChoiceALabel` (`BindWidget`)
+  - Text Block named `ChoiceBLabel` (`BindWidget`)
+- [ ] **Add `WBP_QuestLog` to the player HUD** — same pattern as `WBP_Dialogue` in Phase 4: create + `AddToViewport` from the character or a HUD Blueprint.
+- [ ] **Test L_TavernBack streaming gate (PIE):**
+  - Run `NpcEngine.SeedWorld` to reset engine state, then start PIE in `L_Tavern`
+  - Approach Mira and exchange dialogue until accumulated trust ≥ 40 (`TRUST_GATE_2_MIRA` constant)
+  - Confirm `UNpcWorldSubsystem::OnTavernBackUnlocked` fires (Output Log: `"TavernBack gate fired"`)
+  - If the sub-level isn't streaming in automatically: in `L_Tavern` Level Blueprint (or player HUD), bind `OnTavernBackUnlocked` → call `ULevelStreamingDynamic::LoadLevelInstance` or make the streaming level visible. Record the wiring choice in DECISIONS.md.
+- [ ] **Chain A end-to-end verification** (requires all Slice-2 NPCs placed + engine seeded + quest log wired):
+  - Fresh save → investigate Mira (trust gate 1 at 25) → identify Aldric through 2+ conversations → quest log shows `find_wine_merchant` active → `deliver_amulet` appears → faction fork fires → faction standing change logged to Output Log
+  - Confirm quest log shows `deliver_amulet` complete and `aldric_confession` step appears
