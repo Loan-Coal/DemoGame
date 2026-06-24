@@ -259,6 +259,92 @@ FString FNpcEngineJsonUtils::SerialiseClockAdvance(int32 DeltaTicks)
     return Out;
 }
 
+// ── Quest lifecycle serialisation (DEC-027) ──────────────────────────────────
+
+FString FNpcEngineJsonUtils::SerialiseQuestOffer(const FQuestOfferRequest& Req)
+{
+    TArray<TSharedPtr<FJsonValue>> ObjArr;
+    for (const FQuestObjectiveData& O : Req.Objectives)
+    {
+        TSharedRef<FJsonObject> ObjEl = MakeShared<FJsonObject>();
+        ObjEl->SetStringField(TEXT("objective_id"),       O.ObjectiveId);
+        ObjEl->SetStringField(TEXT("description"),        O.Description);
+        ObjEl->SetNumberField(TEXT("required_progress"),  O.RequiredProgress);
+        ObjArr.Add(MakeShared<FJsonValueObject>(ObjEl));
+    }
+
+    TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
+    Root->SetStringField(TEXT("quest_id"),   Req.QuestId);
+    Root->SetStringField(TEXT("player_id"),  Req.PlayerId);
+    Root->SetStringField(TEXT("title"),      Req.Title);
+    Root->SetArrayField(TEXT("objectives"),  ObjArr);
+    Root->SetArrayField(TEXT("item_rewards"), TArray<TSharedPtr<FJsonValue>>{});
+    Root->SetField(TEXT("currency_reward"),  MakeShared<FJsonValueNull>());
+
+    FString Out;
+    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Out);
+    FJsonSerializer::Serialize(Root, Writer);
+    return Out;
+}
+
+FString FNpcEngineJsonUtils::SerialiseQuestAccept(const FString& QuestId, const FString& PlayerId)
+{
+    TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
+    Root->SetStringField(TEXT("quest_id"),  QuestId);
+    Root->SetStringField(TEXT("player_id"), PlayerId);
+    FString Out;
+    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Out);
+    FJsonSerializer::Serialize(Root, Writer);
+    return Out;
+}
+
+FString FNpcEngineJsonUtils::SerialiseQuestObjective(const FQuestObjectiveRequest& Req)
+{
+    TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
+    Root->SetStringField(TEXT("quest_id"),      Req.QuestId);
+    Root->SetStringField(TEXT("player_id"),     Req.PlayerId);
+    Root->SetStringField(TEXT("objective_id"),  Req.ObjectiveId);
+    Root->SetNumberField(TEXT("progress_delta"),Req.ProgressDelta);
+    FString Out;
+    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Out);
+    FJsonSerializer::Serialize(Root, Writer);
+    return Out;
+}
+
+FString FNpcEngineJsonUtils::SerialiseQuestEvaluate(const FString& QuestId, const FString& PlayerId)
+{
+    TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
+    Root->SetStringField(TEXT("quest_id"),  QuestId);
+    Root->SetStringField(TEXT("player_id"), PlayerId);
+    FString Out;
+    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Out);
+    FJsonSerializer::Serialize(Root, Writer);
+    return Out;
+}
+
+FString FNpcEngineJsonUtils::SerialiseQuestReward(const FString& QuestId, const FString& PlayerId)
+{
+    TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
+    Root->SetStringField(TEXT("quest_id"),  QuestId);
+    Root->SetStringField(TEXT("player_id"), PlayerId);
+    FString Out;
+    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Out);
+    FJsonSerializer::Serialize(Root, Writer);
+    return Out;
+}
+
+FString FNpcEngineJsonUtils::SerialiseQuestChoose(const FString& PlayerId, const FString& ChoiceId)
+{
+    // quest_id goes in the URL path — body contains only player_id and choice_id (DEC-027).
+    TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
+    Root->SetStringField(TEXT("player_id"), PlayerId);
+    Root->SetStringField(TEXT("choice_id"), ChoiceId);
+    FString Out;
+    TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Out);
+    FJsonSerializer::Serialize(Root, Writer);
+    return Out;
+}
+
 // ── TTS stub ─────────────────────────────────────────────────────────────────
 
 bool FNpcEngineJsonUtils::ParseTTSAudio(const FString& /*Base64Wav*/, TArray<uint8>& Out)

@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "NpcEngineTypes.h"
+#include "NpcQuestTypes.h"
 
 /**
  * Static JSON helpers for NPC Engine payloads.
@@ -45,6 +46,29 @@ public:
      * Serialise a seed edge body: { "src_id": ..., "dst_id": ..., "properties": { ... } }
      */
     static FString SerialiseEdgeWrite(const FString& SrcId, const FString& DstId, const FString& PropertiesJson);
+
+    // ── Quest lifecycle serialisation (DEC-027) ──────────────────────────────
+
+    /** POST /v1/quest/offer — body with quest_id, player_id, title, objectives array. */
+    static FString SerialiseQuestOffer(const FQuestOfferRequest& Req);
+
+    /** POST /v1/quest/accept — body with quest_id and player_id. */
+    static FString SerialiseQuestAccept(const FString& QuestId, const FString& PlayerId);
+
+    /** POST /v1/quest/objective — body with quest_id, player_id, objective_id, progress_delta. */
+    static FString SerialiseQuestObjective(const FQuestObjectiveRequest& Req);
+
+    /** POST /v1/quest/evaluate — body with quest_id and player_id. */
+    static FString SerialiseQuestEvaluate(const FString& QuestId, const FString& PlayerId);
+
+    /** POST /v1/quest/reward — body with quest_id and player_id. */
+    static FString SerialiseQuestReward(const FString& QuestId, const FString& PlayerId);
+
+    /**
+     * POST /v1/quest/{quest_id}/choose body — player_id and choice_id ONLY.
+     * quest_id goes in the URL path (caller's responsibility); it is NOT in the body.
+     */
+    static FString SerialiseQuestChoose(const FString& PlayerId, const FString& ChoiceId);
 
     // ── TTS stub ─────────────────────────────────────────────────────────────
 

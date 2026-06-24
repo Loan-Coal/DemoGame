@@ -14,6 +14,28 @@ namespace NpcEngine
 {
     /** Maximum player message length (characters). Validated client-side before any HTTP call. */
     inline constexpr int32 MaxPlayerMessageChars = 1000;
+
+    /** Trust threshold: Mira reveals Aldric information (Phase 4 gate 1). */
+    inline constexpr int32 TrustGate1Mira = 25;
+
+    /** Trust threshold: L_TavernBack sub-level becomes accessible (Phase 5 gate 2). */
+    inline constexpr int32 TrustGate2Mira = 40;
+
+    /** Trust threshold: Sorn unlocks patrol_duty quest (Phase 6). */
+    inline constexpr int32 TrustGateSornQuest = 50;
+}
+
+/**
+ * Stable NPC ID FName constants. Values must match the engine seed (DemoWorld_v1.json).
+ * Use these everywhere instead of raw string literals — DemoGame source enforces this via check_rules.py.
+ */
+namespace NpcId
+{
+    inline const FName MiraInnkeeper   = TEXT("mira_innkeeper");
+    inline const FName LiraFence       = TEXT("lira_fence");
+    inline const FName AldricMerchant  = TEXT("aldric_merchant");
+    inline const FName CaptainSorn     = TEXT("captain_sorn");
+    inline const FName OldHenryk       = TEXT("old_henryk");
 }
 
 // ── Enums ────────────────────────────────────────────────────────────────────

@@ -8,6 +8,7 @@
 #include "CoreMinimal.h"
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "NpcDialogueService.h"
+#include "NpcQuestService.h"
 #include "NpcEngineServiceSubsystem.generated.h"
 
 class UNpcEngineRestClient;
@@ -30,6 +31,9 @@ public:
 
     /** The DIP seam: the abstract dialogue service backed by the concrete REST client. */
     TScriptInterface<INpcDialogueService> GetDialogueService() const;
+
+    /** The ISP quest service (DEC-026): backed by the same concrete REST client. */
+    TScriptInterface<INpcQuestService> GetQuestService() const;
 
 private:
     /** Concrete client, owned for the GameInstance lifetime (kept alive by the UPROPERTY). */

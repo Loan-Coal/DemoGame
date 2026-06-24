@@ -1,3 +1,8 @@
+// File: NpcEngineRestClient.cpp
+// Module: NpcEngineClient
+// Purpose: Async REST client for the NPC Engine; implements INpcDialogueService and INpcQuestService.
+// Net I/O: yes
+
 #include "NpcEngineRestClient.h"
 #include "NpcEngineClient.h"
 #include "NpcEngineConfig.h"
@@ -231,6 +236,137 @@ void UNpcEngineRestClient::AdvanceClock(
                     TEXT("AdvanceClock: envelope parse failed. Body=%s"), *ResponseBody);
                 OnError.ExecuteIfBound(TEXT("ClockAdvance: envelope parse failed."));
             }
+            OnResult(bOk);
+        });
+}
+
+// ── Quest lifecycle (INpcQuestService) ───────────────────────────────────────
+// Each method: POST the appropriate endpoint; OkEnvelope response; non-2xx → log + OnResult(false).
+
+void UNpcEngineRestClient::QuestOffer(
+    const FQuestOfferRequest& Request,
+    TFunction<void(bool)> OnResult, FOnNpcEngineError OnError)
+{
+    MakeAuthRequest(TEXT("POST"), BuildUrl(TEXT("/v1/quest/offer")),
+        FNpcEngineJsonUtils::SerialiseQuestOffer(Request), 10.f,
+        [OnResult, OnError](int32 Status, const FString& Body)
+        {
+            if (Status != 200)
+            {
+                UE_LOG(LogNpcEngine, Error, TEXT("QuestOffer failed Status=%d"), Status);
+                OnError.ExecuteIfBound(FString::Printf(TEXT("QuestOffer failed Status=%d"), Status));
+                OnResult(false); return;
+            }
+            TSharedPtr<FJsonObject> Data;
+            const bool bOk = FNpcEngineJsonUtils::UnwrapEnvelopeData(Body, Data);
+            if (!bOk) { OnError.ExecuteIfBound(TEXT("QuestOffer: envelope parse failed.")); }
+            OnResult(bOk);
+        });
+}
+
+void UNpcEngineRestClient::QuestAccept(
+    const FString& QuestId, const FString& PlayerId,
+    TFunction<void(bool)> OnResult, FOnNpcEngineError OnError)
+{
+    MakeAuthRequest(TEXT("POST"), BuildUrl(TEXT("/v1/quest/accept")),
+        FNpcEngineJsonUtils::SerialiseQuestAccept(QuestId, PlayerId), 10.f,
+        [OnResult, OnError](int32 Status, const FString& Body)
+        {
+            if (Status != 200)
+            {
+                UE_LOG(LogNpcEngine, Error, TEXT("QuestAccept failed Status=%d"), Status);
+                OnError.ExecuteIfBound(FString::Printf(TEXT("QuestAccept failed Status=%d"), Status));
+                OnResult(false); return;
+            }
+            TSharedPtr<FJsonObject> Data;
+            const bool bOk = FNpcEngineJsonUtils::UnwrapEnvelopeData(Body, Data);
+            if (!bOk) { OnError.ExecuteIfBound(TEXT("QuestAccept: envelope parse failed.")); }
+            OnResult(bOk);
+        });
+}
+
+void UNpcEngineRestClient::QuestObjective(
+    const FQuestObjectiveRequest& Request,
+    TFunction<void(bool)> OnResult, FOnNpcEngineError OnError)
+{
+    MakeAuthRequest(TEXT("POST"), BuildUrl(TEXT("/v1/quest/objective")),
+        FNpcEngineJsonUtils::SerialiseQuestObjective(Request), 10.f,
+        [OnResult, OnError](int32 Status, const FString& Body)
+        {
+            if (Status != 200)
+            {
+                UE_LOG(LogNpcEngine, Error, TEXT("QuestObjective failed Status=%d"), Status);
+                OnError.ExecuteIfBound(FString::Printf(TEXT("QuestObjective failed Status=%d"), Status));
+                OnResult(false); return;
+            }
+            TSharedPtr<FJsonObject> Data;
+            const bool bOk = FNpcEngineJsonUtils::UnwrapEnvelopeData(Body, Data);
+            if (!bOk) { OnError.ExecuteIfBound(TEXT("QuestObjective: envelope parse failed.")); }
+            OnResult(bOk);
+        });
+}
+
+void UNpcEngineRestClient::QuestEvaluate(
+    const FString& QuestId, const FString& PlayerId,
+    TFunction<void(bool)> OnResult, FOnNpcEngineError OnError)
+{
+    MakeAuthRequest(TEXT("POST"), BuildUrl(TEXT("/v1/quest/evaluate")),
+        FNpcEngineJsonUtils::SerialiseQuestEvaluate(QuestId, PlayerId), 10.f,
+        [OnResult, OnError](int32 Status, const FString& Body)
+        {
+            if (Status != 200)
+            {
+                UE_LOG(LogNpcEngine, Error, TEXT("QuestEvaluate failed Status=%d"), Status);
+                OnError.ExecuteIfBound(FString::Printf(TEXT("QuestEvaluate failed Status=%d"), Status));
+                OnResult(false); return;
+            }
+            TSharedPtr<FJsonObject> Data;
+            const bool bOk = FNpcEngineJsonUtils::UnwrapEnvelopeData(Body, Data);
+            if (!bOk) { OnError.ExecuteIfBound(TEXT("QuestEvaluate: envelope parse failed.")); }
+            OnResult(bOk);
+        });
+}
+
+void UNpcEngineRestClient::QuestReward(
+    const FString& QuestId, const FString& PlayerId,
+    TFunction<void(bool)> OnResult, FOnNpcEngineError OnError)
+{
+    MakeAuthRequest(TEXT("POST"), BuildUrl(TEXT("/v1/quest/reward")),
+        FNpcEngineJsonUtils::SerialiseQuestReward(QuestId, PlayerId), 10.f,
+        [OnResult, OnError](int32 Status, const FString& Body)
+        {
+            if (Status != 200)
+            {
+                UE_LOG(LogNpcEngine, Error, TEXT("QuestReward failed Status=%d"), Status);
+                OnError.ExecuteIfBound(FString::Printf(TEXT("QuestReward failed Status=%d"), Status));
+                OnResult(false); return;
+            }
+            TSharedPtr<FJsonObject> Data;
+            const bool bOk = FNpcEngineJsonUtils::UnwrapEnvelopeData(Body, Data);
+            if (!bOk) { OnError.ExecuteIfBound(TEXT("QuestReward: envelope parse failed.")); }
+            OnResult(bOk);
+        });
+}
+
+void UNpcEngineRestClient::QuestChoose(
+    const FString& QuestId, const FString& PlayerId, const FString& ChoiceId,
+    TFunction<void(bool)> OnResult, FOnNpcEngineError OnError)
+{
+    // quest_id goes in the URL path; body has player_id + choice_id only (DEC-027).
+    const FString Url = BuildUrl(FString::Printf(TEXT("/v1/quest/%s/choose"), *QuestId));
+    MakeAuthRequest(TEXT("POST"), Url,
+        FNpcEngineJsonUtils::SerialiseQuestChoose(PlayerId, ChoiceId), 10.f,
+        [OnResult, OnError](int32 Status, const FString& Body)
+        {
+            if (Status != 200)
+            {
+                UE_LOG(LogNpcEngine, Error, TEXT("QuestChoose failed Status=%d"), Status);
+                OnError.ExecuteIfBound(FString::Printf(TEXT("QuestChoose failed Status=%d"), Status));
+                OnResult(false); return;
+            }
+            TSharedPtr<FJsonObject> Data;
+            const bool bOk = FNpcEngineJsonUtils::UnwrapEnvelopeData(Body, Data);
+            if (!bOk) { OnError.ExecuteIfBound(TEXT("QuestChoose: envelope parse failed.")); }
             OnResult(bOk);
         });
 }

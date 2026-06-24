@@ -23,6 +23,11 @@ void UNpcEngineServiceSubsystem::Deinitialize()
 
 TScriptInterface<INpcDialogueService> UNpcEngineServiceSubsystem::GetDialogueService() const
 {
-    // The UObject* constructor sets both the object and the interface pointer.
     return TScriptInterface<INpcDialogueService>(RestClient);
+}
+
+TScriptInterface<INpcQuestService> UNpcEngineServiceSubsystem::GetQuestService() const
+{
+    // RestClient implements both INpcDialogueService and INpcQuestService (DEC-026).
+    return TScriptInterface<INpcQuestService>(RestClient);
 }

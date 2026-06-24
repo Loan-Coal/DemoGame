@@ -1,9 +1,15 @@
+// File: NpcEngineRestClient.h
+// Module: NpcEngineClient
+// Purpose: Async REST client for the NPC Engine; implements INpcDialogueService and INpcQuestService.
+// Net I/O: yes
+
 #pragma once
 
 #include "CoreMinimal.h"
 #include "UObject/Object.h"
 #include "NpcEngineTypes.h"
 #include "NpcDialogueService.h"
+#include "NpcQuestService.h"
 #include "NpcEngineRestClient.generated.h"
 
 // ── Delegates ────────────────────────────────────────────────────────────────
@@ -23,7 +29,9 @@ DECLARE_DELEGATE_OneParam(FOnAudioReady, const TArray<uint8>& /*PCMBytes*/);
  * Auth: every request (except /health) carries  Authorization: Bearer <key>.
  */
 UCLASS()
-class NPCENGINECLIENT_API UNpcEngineRestClient : public UObject, public INpcDialogueService
+class NPCENGINECLIENT_API UNpcEngineRestClient : public UObject,
+    public INpcDialogueService,
+    public INpcQuestService
 {
     GENERATED_BODY()
 
@@ -79,6 +87,52 @@ public:
     virtual void AdvanceClock(
         int32 DeltaTicks,
         TFunction<void(bool /*bSuccess*/)> OnResult,
+        FOnNpcEngineError OnError) override;
+
+    // ── Quest lifecycle (INpcQuestService) ───────────────────────────────────
+
+    /** POST /v1/quest/offer — register quest + objectives. */
+    virtual void QuestOffer(
+        const FQuestOfferRequest& Request,
+        TFunction<void(bool)> OnResult,
+        FOnNpcEngineError OnError) override;
+
+    /** POST /v1/quest/accept — player accepts quest. */
+    virtual void QuestAccept(
+        const FString& QuestId,
+        const FString& PlayerId,
+        TFunction<void(bool)> OnResult,
+        FOnNpcEngineError OnError) override;
+
+    /** POST /v1/quest/objective — record objective progress. */
+    virtual void QuestObjective(
+        const FQuestObjectiveRequest& Request,
+        TFunction<void(bool)> OnResult,
+        FOnNpcEngineError OnError) override;
+
+    /** POST /v1/quest/evaluate — check if all objectives satisfied. */
+    virtual void QuestEvaluate(
+        const FString& QuestId,
+        const FString& PlayerId,
+        TFunction<void(bool)> OnResult,
+        FOnNpcEngineError OnError) override;
+
+    /** POST /v1/quest/reward — deliver reward to player. */
+    virtual void QuestReward(
+        const FString& QuestId,
+        const FString& PlayerId,
+        TFunction<void(bool)> OnResult,
+        FOnNpcEngineError OnError) override;
+
+    /**
+     * POST /v1/quest/{quest_id}/choose — faction fork branch.
+     * QuestId in URL path; PlayerId + ChoiceId in body.
+     */
+    virtual void QuestChoose(
+        const FString& QuestId,
+        const FString& PlayerId,
+        const FString& ChoiceId,
+        TFunction<void(bool)> OnResult,
         FOnNpcEngineError OnError) override;
 
     // ── Client-side fallback ─────────────────────────────────────────────────
