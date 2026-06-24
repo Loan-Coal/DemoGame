@@ -1,4 +1,5 @@
 #include "NpcActorBase.h"
+#include "DialogueComponent.h"
 #include "NpcInteractionComponent.h"
 #include "Components/SphereComponent.h"
 #include "DemoGame.h"
@@ -13,6 +14,7 @@ ANpcActorBase::ANpcActorBase()
     RootComponent = InteractionSphere;
 
     InteractionComponent = CreateDefaultSubobject<UNpcInteractionComponent>(TEXT("InteractionComponent"));
+    DialogueComponent    = CreateDefaultSubobject<UDialogueComponent>(TEXT("DialogueComponent"));
 }
 
 void ANpcActorBase::BeginPlay()

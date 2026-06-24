@@ -3,6 +3,59 @@
 Append-only. Each entry: context, decision, rationale. Never edit a past decision — supersede it with a
 new entry that references the old one.
 
+## DEC-024: UNpcFallbackLinesAsset moved from NpcEngineClient to DemoGame
+**Date:** 2026-06-24
+**Context:** Phase 1 ROADMAP placed `UNpcFallbackLinesAsset` in `NpcEngineClient/Public/` because the original intent was for the REST client to handle its own fallback lookup. Phase 4 changed the design: `UDialogueComponent` (DemoGame) owns the error path and does the fallback lookup. Leaving the asset in `NpcEngineClient` caused `UDialogueComponent.h` to expose an `NPCENGINECLIENT_API` type as a `UPROPERTY` — a module boundary violation (cpp-reviewer CRITICAL-1).
+**Decision:** Moved `NpcFallbackLinesAsset.h` / `.cpp` from `NpcEngineClient/Public|Private/` to `DemoGame/Dialogue/`. Changed `NPCENGINECLIENT_API` → `DEMOGAME_API`. The include name is unchanged, so all existing `#include "NpcFallbackLinesAsset.h"` callsites still resolve (DemoGame/Dialogue is in PublicIncludePaths).
+**Rationale:** The asset has zero HTTP/JSON dependency — it is pure editor-authored data consumed entirely by DemoGame. No NpcEngineClient code references it. Moving it removes the boundary leak and satisfies SRP.
+
+## DEC-022: UDialogueComponent does not manage input mode — ADemoGameCharacter does
+**Date:** 2026-06-24
+**Context:** Phase 4 roadmap said `StartDialogue` should "disable player movement input". `UDialogueComponent` is an `ActorComponent` on the NPC, not the player; it has no reliable access to the `APlayerController` needed for `SetInputMode`. `ADemoGameCharacter::OpenDialogue` already calls `PC->SetInputMode(FInputModeGameAndUI{...})` and passes the widget focus.
+**Decision:** `UDialogueComponent::StartDialogue(APlayerController* PC)` does NOT change input mode. Input mode is set by `ADemoGameCharacter::OpenDialogue` (before calling `StartDialogue`). The PC parameter is kept on the signature for future use (e.g. widget focus hand-off, camera) and is reserved.
+**Why:** SRP — the component manages NPC-side session state (SessionId, trust, fallback) and the player controller manages player-side input. Mixing input mode into the NPC component would require the component to know about the player widget, violating the boundary.
+
+## DEC-023: UDialogueManagerSubsystem::SubmitPlayerMessage delegates to UDialogueComponent if present
+**Date:** 2026-06-24
+**Context:** Phase 4 introduces `UDialogueComponent` on each NPC to own session state + trust accumulation. The existing `UDialogueWidgetBase` calls `DM->SubmitPlayerMessage(msg)`. If DM continues to own the HTTP call path, the component never accumulates trust and `OnFallbackLine` never fires.
+**Decision:** `DM::SubmitPlayerMessage` checks `ActiveNpc->FindComponentByClass<UDialogueComponent>()`. If found, it delegates to `Comp->SubmitMessage(msg)` and returns. The component then calls `DM->NotifyNpcResponse`/`NotifyDialogueError` on completion so existing widget delegate subscriptions (OnNpcSpoke, OnDialogueError) continue to fire. Legacy path (no component) still calls the service directly.
+**Why:** Preserves backward compatibility for any NPC actors placed before Phase 4 while enabling the component path for new NPC actors that have `UDialogueComponent` as a default subobject (added to `ANpcActorBase` in Phase 4).
+
+## DEC-020: DemoWorld_v1.json — registry-required field additions and event/quest schema mapping
+**Date:** 2026-06-24
+**Context:** Live-testing `NpcEngine.SeedWorld` revealed the engine's node registry enforces
+per-type required fields not reflected in the hand-curated `docs/openapi.json`. Root cause confirmed
+via `GET /v1/admin/schema/registry`.
+**Decision:** Add the missing required fields to all nodes in `Seed/DemoWorld_v1.json`. All
+timestamp fields (`created_at`, `updated_at`, `last_graph_updated_at`) use the seed epoch
+`"2026-01-01T00:00:00Z"`. Non-obvious mappings chosen for the engine's event/quest schemas:
+- Event `event_type`: `"military_conflict"` — open string field, descriptive.
+- Event `location_id`: `"loc_guard_barracks"` — closest seed location to the actual northern pass
+  (no `loc_northern_pass` node exists; see ISSUES for follow-up).
+- Event `is_public`: `false` — the event is officially suppressed.
+- Event `severity`: `8` — significant military event.
+- Event `tick_id`: `0` — pre-game seed epoch.
+- Quest `quest_giver_id`: first natural NPC per chain (mira → A, captain_sorn → B, lira → C).
+- Quest `status`: `"available"` for all — initial pre-offer state.
+- Quest `severity`: 5 (chain A), 4 (chain B), 3 (chain C).
+**Important:** Edge types are strict — the engine rejects any property not in the registry schema (`UNKNOWN_FIELD` 422). Node types are permissive (`additionalProperties: true`). Narrative-only fields belong on nodes only, never on edges.
+Edge type required fields (from registry, confirmed 2026-06-24):
+- MEMBER_OF: `joined_at` (str) — added `"2026-01-01T00:00:00Z"` to both MEMBER_OF edges.
+- KNOWS_ABOUT: `learned_at_tick` (int) — added `0` (seed epoch tick).
+- RELATES_TO: `interaction_count` (int), `last_updated_at` (str), `relevance_score` (float) — added `0`, `"2026-01-01T00:00:00Z"`, `0.5` (neutral initial relevance) to all RELATES_TO edges.
+- LOCATED_AT: all fields optional — no additions needed.
+**Rationale:** Engine's registry validates required fields server-side after Pydantic deserialization.
+Existing narrative-only fields (`name`, `description`, `source_text`, `hop_*`, `chain`, `objectives`,
+etc.) are preserved as extra properties (registry has `additionalProperties: true`). Contract docs
+(`docs/ENGINE_CONTRACT.md`, `docs/openapi.json`) need a reconciliation pass — logged as an issue.
+
+## DEC-021: Quest node type is strict; game-progression fields removed from seed
+**Date:** 2026-06-24
+**Context:** `NpcEngine.SeedWorld` returned `UNKNOWN_FIELD: unknown fields for quest: chain, chain_position, next_quest_id, objectives, title` on the first quest node. Registry query confirmed the quest schema has 11 fields and rejects extras. Location, Faction, Character, and Event node types accept additionalProperties — they were seeded successfully with narrative extras in the prior run. Quest type does not.
+**Decision:** Strip all non-schema fields from quest nodes in `DemoWorld_v1.json`: removed `title`, `chain`, `chain_position`, `objectives`, `next_quest_id`, `fork_quest_ids`, `trust_gate_npc`. Also renamed event field `source_npc_id` → `src_character_id` to match the registry's optional field name (correctness, not a strictness issue — events are permissive).
+**Game-progression data:** `chain`, `chain_position`, `objectives`, `next_quest_id`, `fork_quest_ids`, `trust_gate_npc` are game-owned quest flow metadata. They belong in a game DataAsset or hardcoded in C++ quest logic, not in the NPC Engine graph. The engine's quest nodes exist so NPCs can reference them by description/giver/severity in dialogue.
+**Rationale:** The NPC Engine graph is an NPC-awareness layer, not a game save. Quest progression is game state; quest existence/context is engine state. Keeping the split clean prevents future confusion about which system is authoritative for which data.
+
 ## DEC-001: Separate git repo from the engine
 **Date:** 2026-06-23
 **Decision:** DemoGame is its own git repository, distinct from the NPC Engine backend repo, and uses Git LFS for binary assets.

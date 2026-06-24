@@ -173,12 +173,12 @@ fails for the right reason, implement minimal to pass, refactor green. Gameplay 
   - [x] On any non-2xx: `UE_LOG(LogNpcEngine, Error, …)` and halt; never silently continue
   - [x] Non-blocking: each upsert async; callbacks fire on game thread. `SetHttpExecutorForTesting` seam for specs.
 - [x] Exec command `NpcEngine.SeedWorld` (FAutoConsoleCommandWithWorld in NpcEngineClient) — registered at bottom of `NpcWorldSeeder.cpp`; does not require a live `APlayerController`. *(2026-06-24)*
-- [ ] Verify: run seeder twice against a live engine. Second run logs 0 new nodes created (all skipped by idempotency check). *(requires live engine — manual gate)*
+- [x] Verify: run seeder twice against a live engine. Second run logs 0 new nodes created (all skipped by idempotency check). *(requires live engine — manual gate)*
 - [x] Reconcile `DemoWorld_v1.json` with `docs/ENGINE_CONTRACT.md`. Property shapes verified against §4 and existing `Seed/slice1_tavern.json` — consistent. *(2026-06-24)*
 
 ---
 
-## Phase 4 — Dialogue + Trust Gate (Greybox)
+## Phase 4 — Dialogue + Trust Gate (Greybox) *(C++ complete 2026-06-24; editor session + live trust-gate verification pending)*
 
 **Goal:** One complete investigation step playable — approach Mira, build trust, cross trust gate 1, learn Aldric's situation.
 **Independently demoable:** Approach a capsule, press E, type a message, receive a response, watch the trust meter move.
@@ -186,23 +186,23 @@ fails for the right reason, implement minimal to pass, refactor green. Gameplay 
 **Quality gate:** `pwsh Scripts/check.ps1 -WithBuild -WithTests`
 
 - [ ] **Author fallback lines for Mira and Lira** in `DA_NpcFallbackLines` DataAsset (`TMap<FName, FText>`). Keys are the NPC ID FName constants — no hardcoded string literals in C++. Example text: Mira: *"…Mira seems distracted and doesn't respond."*; Lira: *"…Lira shrugs and looks away."* These appear on 30 s timeout or non-2xx from the engine.
-- [ ] Write failing functional Automation Spec for `UDialogueComponent` (DemoGame/Tests):
-  - [ ] `SubmitMessage("")` → rejected client-side (no delegate fired, no HTTP call); uses `DIALOGUE_MAX_CHARS` named constant from NpcEngineClient
-  - [ ] `SubmitMessage` with string over `DIALOGUE_MAX_CHARS` → rejected client-side
-  - [ ] `SubmitMessage` on valid input with fake `INpcDialogueService` returning non-2xx → `OnFallbackLine` fired; fallback text from `DA_NpcFallbackLines`; mock returns fallback (not success) — LSP rule enforced
-- [ ] `UDialogueComponent` on `ANpcActorBase` (DemoGame module, Net I/O: no):
-  - [ ] `StartDialogue(APlayerController*)`: begins session; clears history; disables player movement input
-  - [ ] `SubmitMessage(FString PlayerMessage)`: validates non-empty AND `PlayerMessage.Len() <= DIALOGUE_MAX_CHARS`; calls `Service->SendDialogue(FDialogueRequest{...})` through `TScriptInterface<INpcDialogueService>`; locks text input widget during wait. No `FHttpModule` usage — all routed through interface.
-  - [ ] On response (`FDialogueResponse` received): cache `SessionId`; update local trust accumulator; broadcast `OnTrustChanged(FName NpcId, FRelationDeltas Deltas)`; broadcast `OnMemoriesRecalled(TArray<FString>)` if `MemoriesRecalled` is non-empty; fire `OnFacialExpression(EFacialExpressionType, int32 Intensity)`
-  - [ ] On timeout / non-2xx: fire `OnFallbackLine(FName NpcId, FText FallbackText)` — text from `DA_NpcFallbackLines`; game continues; never crash; never hang
-  - [ ] `DegradationLevel != "full"`: log `UE_LOG(LogNpcEngine, Log, "Degradation=%s", …)` and continue; do not surface to player in demo v1
-- [ ] `UDialogueWidget` (UUserWidget C++ base class, DemoGame module, Net I/O: no):
-  - [ ] Text input field: `IsReadOnly = true` during LLM wait; restored to `false` on response or fallback
-  - [ ] Dialogue history panel: last 4 exchanges, scrollable; word-by-word text reveal at 20 ms/word over full string (cosmetic UWidgetAnimation — full string available immediately on receipt)
-  - [ ] Thinking state: `...` ellipsis pulsing via UWidgetAnimation during wait
-  - [ ] `memories_recalled` badge: appears at top of panel for 5 s on `OnMemoriesRecalled` when array is non-empty; text from `DA_MemoryBadgeLookup` DataAsset (memory node ID FName → authored `FText`); badge hidden when array is empty — never show an empty badge
-  - [ ] No art — white panels, legible fonts at this stage
-- [ ] `URelationshipMeterWidget` (debug HUD overlay, DemoGame module, Net I/O: no): shows `trust`, `fear`, `affection` as signed integers per active NPC; animates (simple lerp) on `OnTrustChanged`
+- [x] Write failing functional Automation Spec for `UDialogueComponent` (DemoGame/Tests): *(2026-06-24)*
+  - [x] `SubmitMessage("")` → rejected client-side (no delegate fired, no HTTP call); uses `NpcEngine::MaxPlayerMessageChars` named constant from NpcEngineClient
+  - [x] `SubmitMessage` with string over `NpcEngine::MaxPlayerMessageChars` → rejected client-side
+  - [x] `SubmitMessage` on valid input with fake `INpcDialogueService` returning non-2xx → `OnFallbackLine` fired; fallback text from `DA_NpcFallbackLines`; mock fires `OnError` (not success) — LSP rule enforced
+- [x] `UDialogueComponent` on `ANpcActorBase` (DemoGame module, Net I/O: no): *(2026-06-24)*
+  - [x] `StartDialogue(APlayerController*)`: begins session; clears `SessionId` + `AccumulatedTrust`; calls `DM->BeginDialogue`. Input mode managed by `ADemoGameCharacter` (DEC-019).
+  - [x] `SubmitMessage(FString PlayerMessage)`: validates non-empty AND `PlayerMessage.Len() <= NpcEngine::MaxPlayerMessageChars`; calls `Service->SendDialogue` through `TScriptInterface<INpcDialogueService>`; no `FHttpModule` usage.
+  - [x] On response: cache `SessionId`; update `AccumulatedTrust`; broadcast `OnTrustChanged`, `OnMemoriesRecalled` (if non-empty), `OnFacialExpression`; notify DM for widget.
+  - [x] On timeout / non-2xx: fire `OnFallbackLine(FName NpcId, FText FallbackText)` — text from `UNpcFallbackLinesAsset`; game continues; never crash.
+  - [x] `DegradationLevel != "full"`: logged to `LogNpcEngine`; not surfaced to player in demo v1.
+- [x] `UDialogueWidgetBase` (UUserWidget C++ base class, DemoGame module, Net I/O: no): *(2026-06-24)*
+  - [x] Text input field: `IsReadOnly = true` during LLM wait; restored to `false` on response or fallback.
+  - [x] Dialogue history appends to `ResponseText` (scrollable via `ResponseScroll`). Word-by-word animation deferred to editor — `UWidgetAnimation` authored in `WBP_Dialogue` BP subclass (ISSUE-NNN).
+  - [x] `ThinkingIndicator` (`UTextBlock`, `BindWidgetOptional`): shown on submit, hidden on response/error. Pulsing ellipsis animation authored in BP subclass.
+  - [x] `memories_recalled` badge: `MemoriesBadge` (`UTextBlock`, `BindWidgetOptional`) shown for 5 s via `FTimerHandle`; text from `UMemoryBadgeLookupAsset`; never shown when array is empty.
+  - [x] No art — white panels, legible fonts at this stage. Visual polish in Phase 9.
+- [x] `URelationshipMeterWidget` (debug HUD overlay, DemoGame module, Net I/O: no): shows `trust`, `fear`, `affection` as signed integers (formatted `+N`/`-N`) per active NPC; `OnRelationshipUpdated` BlueprintNativeEvent for lerp animation in BP subclass. *(2026-06-24)*
 - [ ] Trust gate verification: accumulate trust with Mira past 25 via natural dialogue; confirm she reveals the Aldric information in dialogue history (do not check engine internals directly). Repeat 3 times from a fresh seed. Gate must clear in all 3 runs.
 
 ### [EDITOR SESSION] — NPC Capsule Placement + Widget Layout

@@ -15,6 +15,7 @@
 #include "Blueprint/UserWidget.h"
 #include "GameFramework/PlayerController.h"
 #include "NpcActorBase.h"
+#include "DialogueComponent.h"
 #include "DialogueManager.h"
 #include "DialogueWidgetBase.h"
 #include "DemoGame.h"
@@ -174,7 +175,16 @@ void ADemoGameCharacter::OpenDialogue(ANpcActorBase* Npc)
 		PC->SetShowMouseCursor(true);
 	}
 
-	DM->BeginDialogue(Npc);
+	// Phase 4: delegate session start to the NPC's DialogueComponent so it owns session state.
+	// StartDialogue calls DM->BeginDialogue internally; fallback to direct call if component absent.
+	if (Npc->DialogueComponent)
+	{
+		Npc->DialogueComponent->StartDialogue(PC);
+	}
+	else
+	{
+		DM->BeginDialogue(Npc);
+	}
 }
 
 void ADemoGameCharacter::CloseDialogue()

@@ -32,6 +32,38 @@
 **Why deferred:** Zero risk as-is; synchronous mock is a stated spec contract.
 **To fix:** Add `Seeder->AddToRoot()` in each `It(...)` block before the call, and `Seeder->RemoveFromRoot()` after. Or use `TStrongObjectPtr<UNpcWorldSeeder>` (RAII root handle) when that pattern is adopted project-wide.
 
+## ISSUE-005: loc_tavern_back node in DB has truncated descriptor from manual debug test
+**Found:** 2026-06-24
+**Severity:** P2
+**Where:** NPC Engine graph — node `loc_tavern_back`
+**Description:** During seed debugging a manual POST created `loc_tavern_back` with `descriptor: "A dim storeroom."`. The full seed has `descriptor: "A dim storeroom behind the bar in The Broken Flagon. Lira operates here. Access requires Mira's trust."`. The seeder's CheckNodeExists → Skip logic prevents the full data from being written; the truncated node persists.
+**Why deferred:** Doesn't block the seeder or game logic; only affects NPC context quality for Lira's location.
+**To fix:** Run `Invoke-RestMethod -Method Delete "http://localhost:8000/v1/admin/graph/locations/loc_tavern_back" -Headers $h` then rerun `NpcEngine.SeedWorld`. The seeder will upsert the full descriptor on the next run.
+
+## ISSUE-006: NpcActorBase.h / .cpp missing required file headers
+**Found:** 2026-06-24
+**Severity:** P3
+**Where:** `Source/DemoGame/NPC/NpcActorBase.h`, `Source/DemoGame/NPC/NpcActorBase.cpp`
+**Description:** Files predate the `// File: / Module: / Purpose: / Net I/O:` header rule (added in Phase 1). Both files are missing the four-line header.
+**Why deferred:** Non-blocking; Phase 4 focus is dialogue system. No build or logic impact.
+**To fix:** Add headers at line 1 of each file. `NpcActorBase.h`: `// File: NpcActorBase.h // Module: Game // Purpose: Abstract base class for all NPC actors — carries NpcId, interaction sphere, dialogue component. // Net I/O: no`. Similar for the `.cpp`.
+
+## ISSUE-008: FakeNpcDialogueService::AdvanceClock fires both OnError and OnResult(false) — LSP violation
+**Found:** 2026-06-24
+**Severity:** P3
+**Where:** `Source/DemoGame/Private/Tests/FakeNpcDialogueService.h` lines 73–77
+**Description:** On `bAdvanceClockSucceeds = false`, the fake fires both `OnError.ExecuteIfBound(...)` and `OnResult(false)`. The real `UNpcEngineRestClient::AdvanceClock` implementation fires one or the other, never both. Any test asserting the error path will see two callbacks — a latent LSP parity bug.
+**Why deferred:** No test currently covers `AdvanceClock` failure + `OnResult` interaction in combination. Existing `ClockAdvance.spec.cpp` tests use `bAdvanceClockSucceeds = true`. No correctness impact today.
+**To fix:** Remove `OnResult(false)` from the error branch in `FakeNpcDialogueService`, or verify that the real client also calls `OnResult(false)` on error and make them match.
+
+## ISSUE-007: UDialogueWidgetBase word-by-word text reveal deferred to BP subclass
+**Found:** 2026-06-24
+**Severity:** P3
+**Where:** `Source/DemoGame/Dialogue/DialogueWidgetBase.h` / `.cpp`
+**Description:** Phase 4 roadmap specifies word-by-word text reveal at 20 ms/word via `UWidgetAnimation`. The C++ base appends full text immediately; the pulsing animation is described as a "cosmetic UWidgetAnimation" that must be authored in the `WBP_Dialogue` Blueprint subclass. No C++ support for this is wired yet.
+**Why deferred:** Animation authoring is an editor session task. Full text is available immediately so gameplay is not blocked. The `ThinkingIndicator` visible/hidden logic is done; only the ellipsis pulse animation remains.
+**To fix:** In the editor session: (1) Create a UWidgetAnimation in `WBP_Dialogue` that plays an ellipsis `...` cycle on `ThinkingIndicator`. (2) Add a word-by-word reveal animation or timer-driven substring reveal in the widget's `OnNpcResponseReceived` BP override.
+
 <!--
 IDs are monotonic and never reused — check this file AND archive/ISSUES_RESOLVED.md before numbering.
 When fixed: mark `## [FIXED] ISSUE-NNN`, add `**Fixed:** YYYY-MM-DD, in <commit/task>`, then move the

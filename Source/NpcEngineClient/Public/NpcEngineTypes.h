@@ -8,6 +8,14 @@
 #include "CoreMinimal.h"
 #include "NpcEngineTypes.generated.h"
 
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+namespace NpcEngine
+{
+    /** Maximum player message length (characters). Validated client-side before any HTTP call. */
+    inline constexpr int32 MaxPlayerMessageChars = 1000;
+}
+
 // ── Enums ────────────────────────────────────────────────────────────────────
 
 /** Action the NPC intends to perform. Engine coerces unknown values → Speak. */

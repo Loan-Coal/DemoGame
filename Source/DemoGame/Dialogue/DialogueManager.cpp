@@ -1,4 +1,5 @@
 #include "DialogueManager.h"
+#include "DialogueComponent.h"
 #include "NpcActorBase.h"
 #include "DemoGame.h"
 #include "NpcDialogueService.h"
@@ -78,6 +79,21 @@ void UDialogueManagerSubsystem::SubmitPlayerMessage(const FString& Message)
         UE_LOG(LogDemoGame, Warning, TEXT("SubmitPlayerMessage: no active dialogue session."));
         return;
     }
+
+    // Prefer delegating to the NPC's UDialogueComponent (Phase 4 path).
+    // The component owns session state, trust accumulation, and fallback — it calls
+    // NotifyNpcResponse / NotifyDialogueError to propagate events back here.
+    if (ActiveNpc.IsValid())
+    {
+        if (UDialogueComponent* Comp =
+                ActiveNpc->FindComponentByClass<UDialogueComponent>())
+        {
+            Comp->SubmitMessage(Message);
+            return;
+        }
+    }
+
+    // Legacy path: no component attached — call the service directly (Phase 3 behaviour).
     INpcDialogueService* Service = ResolveService();
     if (!Service)
     {
@@ -93,7 +109,6 @@ void UDialogueManagerSubsystem::SubmitPlayerMessage(const FString& Message)
     Request.LocationId    = ActiveNpc->LocationId;
     Request.SessionId     = ActiveSessionId;
 
-    // Capture weak ptr so the lambda doesn't hold a strong ref past GC.
     TWeakObjectPtr<UDialogueManagerSubsystem> WeakThis = this;
 
     FOnNpcDialogueComplete SuccessDelegate;
@@ -115,6 +130,37 @@ void UDialogueManagerSubsystem::SubmitPlayerMessage(const FString& Message)
     });
 
     Service->SendDialogue(Request, SuccessDelegate, ErrorDelegate);
+}
+
+void UDialogueManagerSubsystem::NotifyNpcResponse(const FString& NpcResponse,
+    const FString& DisplayName)
+{
+    OnNpcSpoke.Broadcast(NpcResponse, DisplayName);
+}
+
+void UDialogueManagerSubsystem::NotifyDialogueError(const FString& ErrorMsg)
+{
+    UE_LOG(LogDemoGame, Warning,
+        TEXT("DialogueManager: dialogue error/fallback — %s"), *ErrorMsg);
+    OnDialogueError.Broadcast(ErrorMsg);
+}
+
+void UDialogueManagerSubsystem::NotifyRelationshipChanged(FName NpcId,
+    const FNpcRelationDeltas& Deltas)
+{
+    OnRelationshipChanged.Broadcast(NpcId, Deltas);
+}
+
+void UDialogueManagerSubsystem::NotifyMemoriesRecalled(FName NpcId,
+    const TArray<FString>& Memories)
+{
+    OnNpcMemoriesRecalled.Broadcast(NpcId, Memories);
+}
+
+void UDialogueManagerSubsystem::NotifyFacialExpression(FName NpcId,
+    ENpcFacialExpression Expression, int32 Intensity)
+{
+    OnFacialExpression.Broadcast(NpcId, Expression, Intensity);
 }
 
 void UDialogueManagerSubsystem::EndDialogue()

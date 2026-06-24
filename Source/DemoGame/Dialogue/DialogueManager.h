@@ -3,9 +3,11 @@
 #include "CoreMinimal.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "NpcDialogueService.h"
+#include "NpcEngineTypes.h"
 #include "DialogueManager.generated.h"
 
 class ANpcActorBase;
+class UDialogueComponent;
 
 // ── Public delegates (no NpcEngineClient types exposed in the public API) ────
 
@@ -15,7 +17,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
     const FString&, NpcResponse,
     const FString&, NpcDisplayName);
 
-/** Fires when a dialogue call fails. */
+/** Fires when a dialogue call fails or a fallback line is used. */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
     FOnDialogueError,
     const FString&, ErrorMessage);
@@ -27,6 +29,25 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
 
 /** Fires when dialogue ends (close the widget). */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDialogueEnded);
+
+/** Fires when the engine returns relationship deltas (trust/fear/affection). */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
+    FOnNpcRelationshipChanged,
+    FName, NpcId,
+    FNpcRelationDeltas, Deltas);
+
+/** Fires when the engine returns a non-empty memories_recalled array. */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
+    FOnNpcMemoriesRecalled,
+    FName, NpcId,
+    TArray<FString>, Memories);
+
+/** Fires when the engine returns a facial_expression hint. */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(
+    FOnNpcFacialExpression,
+    FName, NpcId,
+    ENpcFacialExpression, Expression,
+    int32, Intensity);
 
 /**
  * World subsystem that owns the active NPC conversation.
@@ -73,6 +94,28 @@ public:
      */
     void SetDialogueService(TScriptInterface<INpcDialogueService> InService);
 
+    /**
+     * Called by UDialogueComponent on a successful engine response.
+     * Broadcasts OnNpcSpoke so existing widget subscriptions continue to work.
+     */
+    void NotifyNpcResponse(const FString& NpcResponse, const FString& DisplayName);
+
+    /**
+     * Called by UDialogueComponent on engine error or fallback.
+     * Broadcasts OnDialogueError so the widget can surface the message.
+     * Fallback: always fires — never silently swallowed.
+     */
+    void NotifyDialogueError(const FString& ErrorMsg);
+
+    /**
+     * Called by UDialogueComponent to bubble relationship/memory/expression events
+     * to manager-level delegates (for widgets that subscribe to the manager rather
+     * than the per-NPC component directly).
+     */
+    void NotifyRelationshipChanged(FName NpcId, const FNpcRelationDeltas& Deltas);
+    void NotifyMemoriesRecalled(FName NpcId, const TArray<FString>& Memories);
+    void NotifyFacialExpression(FName NpcId, ENpcFacialExpression Expression, int32 Intensity);
+
     // ── Delegates ────────────────────────────────────────────────────────────
 
     UPROPERTY(BlueprintAssignable, Category = "Dialogue")
@@ -86,6 +129,18 @@ public:
 
     UPROPERTY(BlueprintAssignable, Category = "Dialogue")
     FOnDialogueEnded OnDialogueEnded;
+
+    /** Fires when UDialogueComponent reports relationship deltas for the active NPC. */
+    UPROPERTY(BlueprintAssignable, Category = "Dialogue")
+    FOnNpcRelationshipChanged OnRelationshipChanged;
+
+    /** Fires when UDialogueComponent reports memories recalled for the active NPC. */
+    UPROPERTY(BlueprintAssignable, Category = "Dialogue")
+    FOnNpcMemoriesRecalled OnNpcMemoriesRecalled;
+
+    /** Fires when UDialogueComponent reports a facial expression hint for the active NPC. */
+    UPROPERTY(BlueprintAssignable, Category = "Dialogue")
+    FOnNpcFacialExpression OnFacialExpression;
 
 private:
     /** Receives FNpcDialogueResponse internally — type not exposed in public header. */

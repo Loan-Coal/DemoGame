@@ -4,6 +4,7 @@
 #include "GameFramework/Actor.h"
 #include "NpcActorBase.generated.h"
 
+class UDialogueComponent;
 class UNpcInteractionComponent;
 class USphereComponent;
 
@@ -44,6 +45,10 @@ public:
     /** Handles player-initiated interact input and proximity checks. */
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "NPC|Components")
     TObjectPtr<UNpcInteractionComponent> InteractionComponent;
+
+    /** Owns the dialogue session with this NPC: service calls, trust, fallback. Assign DA_NpcFallbackLines in subclass defaults. */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "NPC|Components")
+    TObjectPtr<UDialogueComponent> DialogueComponent;
 
 protected:
     virtual void BeginPlay() override;
