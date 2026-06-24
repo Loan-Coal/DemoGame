@@ -64,6 +64,14 @@
 **Why deferred:** Animation authoring is an editor session task. Full text is available immediately so gameplay is not blocked. The `ThinkingIndicator` visible/hidden logic is done; only the ellipsis pulse animation remains.
 **To fix:** In the editor session: (1) Create a UWidgetAnimation in `WBP_Dialogue` that plays an ellipsis `...` cycle on `ThinkingIndicator`. (2) Add a word-by-word reveal animation or timer-driven substring reveal in the widget's `OnNpcResponseReceived` BP override.
 
+## ISSUE-009: Phase 6 C++ complete but uncommitted — Live Coding gate blocker
+**Found:** 2026-06-24
+**Severity:** P1
+**Where:** Build gate (`Scripts/check.ps1 -WithBuild`)
+**Description:** All Phase 6 headless C++ implementation is complete (FNpcStateSnapshot, GossipCacheSubsystem, RumorJournalWidget, ANoticeBoard, Sorn quest gate, two Automation specs, HUMAN_VERIFICATION.md Phase 6 section). The build gate exits with code 6: "Unable to build while Live Coding is active." The Rules check and Contract Sync both pass. Changes are NOT committed because the overnight runner rule forbids committing a red gate.
+**Why deferred:** Unreal Editor is open with Live Coding enabled — pure environmental blocker, not a code error. Once the editor is closed the gate will pass and the commit can proceed.
+**To fix:** Close Unreal Editor (or disable Live Coding via Ctrl+Alt+F11). Then run `powershell -NoProfile -ExecutionPolicy Bypass -File Scripts/check.ps1 -WithBuild -WithTests`. If green, commit all Phase 6 changes: `git add Source/ project-harness/ Seed/ docs/ Scripts/` then `git commit -m "feat(phase6): GossipCacheSubsystem + FNpcStateSnapshot + RumorJournalWidget + NoticeBoard + Sorn quest gate"`.
+
 <!--
 IDs are monotonic and never reused — check this file AND archive/ISSUES_RESOLVED.md before numbering.
 When fixed: mark `## [FIXED] ISSUE-NNN`, add `**Fixed:** YYYY-MM-DD, in <commit/task>`, then move the
