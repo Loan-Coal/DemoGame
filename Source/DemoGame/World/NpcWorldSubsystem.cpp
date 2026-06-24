@@ -5,6 +5,7 @@
 
 #include "NpcWorldSubsystem.h"
 #include "NpcEngineServiceSubsystem.h"
+#include "NpcEngineTypes.h"
 #include "DemoGame.h"
 #include "Engine/GameInstance.h"
 
@@ -49,6 +50,25 @@ INpcDialogueService* UNpcWorldSubsystem::ResolveService()
     UE_LOG(LogDemoGame, Error,
         TEXT("NpcWorldSubsystem::ResolveService: NpcEngineServiceSubsystem unavailable."));
     return nullptr;
+}
+
+// ── Trust gate ───────────────────────────────────────────────────────────────
+
+void UNpcWorldSubsystem::NotifyRelationshipUpdated(FName InNpcId, int32 TrustDelta)
+{
+    if (bTavernBackUnlocked || TrustDelta == 0) return;
+
+    int32& Accumulated = AccumulatedTrustByNpc.FindOrAdd(InNpcId);
+    Accumulated += TrustDelta;
+
+    if (InNpcId == NpcId::MiraInnkeeper && Accumulated >= NpcEngine::TrustGate2Mira)
+    {
+        bTavernBackUnlocked = true;
+        UE_LOG(LogDemoGame, Log,
+            TEXT("TavernBack gate fired NpcId=%s AccumulatedTrust=%d Threshold=%d"),
+            *InNpcId.ToString(), Accumulated, NpcEngine::TrustGate2Mira);
+        OnTavernBackUnlocked.Broadcast();
+    }
 }
 
 // ── Public API ───────────────────────────────────────────────────────────────

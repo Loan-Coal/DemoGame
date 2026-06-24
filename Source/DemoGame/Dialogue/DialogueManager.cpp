@@ -6,6 +6,7 @@
 #include "NpcEngineServiceSubsystem.h"
 #include "NpcEngineTypes.h"
 #include "PlayerIdProvider.h"
+#include "NpcWorldSubsystem.h"
 #include "Engine/GameInstance.h"
 
 void UDialogueManagerSubsystem::Initialize(FSubsystemCollectionBase& Collection)
@@ -149,6 +150,11 @@ void UDialogueManagerSubsystem::NotifyRelationshipChanged(FName NpcId,
     const FNpcRelationDeltas& Deltas)
 {
     OnRelationshipChanged.Broadcast(NpcId, Deltas);
+
+    if (UNpcWorldSubsystem* WorldSS = GetWorld() ? GetWorld()->GetSubsystem<UNpcWorldSubsystem>() : nullptr)
+    {
+        WorldSS->NotifyRelationshipUpdated(NpcId, Deltas.Trust);
+    }
 }
 
 void UDialogueManagerSubsystem::NotifyMemoriesRecalled(FName NpcId,

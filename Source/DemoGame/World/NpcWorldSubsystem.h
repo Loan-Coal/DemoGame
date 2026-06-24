@@ -16,6 +16,9 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
     FName,  NewLocationId,
     int32,  TickCount);
 
+/** Fires once when Mira's accumulated trust crosses TrustGate2Mira (threshold=40). DEC-027. */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnTavernBackUnlocked);
+
 /**
  * World subsystem that tracks which named location the player is currently in and fires
  * a clock-advance tick through INpcDialogueService when the player moves to a new location.
@@ -60,11 +63,27 @@ public:
      */
     void SetDialogueService(TScriptInterface<INpcDialogueService> InService);
 
+    /**
+     * Called by UDialogueManagerSubsystem::NotifyRelationshipChanged to accumulate trust
+     * per NPC and fire the L_TavernBack gate when Mira's trust crosses TrustGate2Mira.
+     *
+     * @param NpcId     The NPC whose trust changed (compare with NpcId:: constants).
+     * @param TrustDelta The signed trust delta from the dialogue response RelationDeltas.
+     */
+    void NotifyRelationshipUpdated(FName InNpcId, int32 TrustDelta);
+
     // ── Delegates ────────────────────────────────────────────────────────────
 
     /** Fires after each successful clock advance tick. Bind UArrivalSubtitleWidget here. */
     UPROPERTY(BlueprintAssignable, Category = "World|Location")
     FOnTickAdvanced OnTickAdvanced;
+
+    /**
+     * Fires ONCE when Mira's accumulated trust crosses TrustGate2Mira (threshold=40).
+     * Wire this in Level Blueprint or player HUD to stream in L_TavernBack sub-level.
+     */
+    UPROPERTY(BlueprintAssignable, Category = "World|Location")
+    FOnTavernBackUnlocked OnTavernBackUnlocked;
 
 private:
     /** Lazily resolved from UNpcEngineServiceSubsystem, or injected by tests. */
@@ -73,6 +92,12 @@ private:
 
     FName CurrentLocationId;
     int32 TickCount = 0;
+
+    /** Accumulated trust per NPC (for gate checks). Not saved — resets on session end. */
+    TMap<FName, int32> AccumulatedTrustByNpc;
+
+    /** Set to true once OnTavernBackUnlocked fires — prevents repeat broadcasts. */
+    bool bTavernBackUnlocked = false;
 
     INpcDialogueService* ResolveService();
 };
