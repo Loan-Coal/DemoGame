@@ -144,44 +144,37 @@ fails for the right reason, implement minimal to pass, refactor green. Gameplay 
 **Prerequisites:** Phase 2 (INpcDialogueService interface stable; world subsystem in place).
 **Quality gate:** `pwsh Scripts/check.ps1 -WithBuild -WithTests`
 
-- [ ] **Reconcile tavern name conflict** — `docs/STORYBOARD.md` calls the tavern "The Rusty Flagon"; `docs/game_design_roadmap.md` §7.1 calls it "The Broken Flagon". Choose one canonical name. Record decision as **DEC-NNN** in `DECISIONS.md`. Propagate the chosen name to `Content/Seed/DemoWorld_v1.json` and `docs/STORYBOARD.md`. All authored text uses "Thornfield" as the town name (confirmed in §13 OQ-5).
-- [ ] Write failing Automation Specs for `UNpcWorldSeeder` (NpcEngineClient/Tests, Net I/O: yes):
-  - [ ] Seeder calls `CheckNodeExists` before each `UpsertNode`; skips the upsert when node exists (idempotency)
-  - [ ] Seeder processes Location nodes before Character nodes; Faction nodes before edge upserts (dependency order enforced)
-  - [ ] Seeder halts and logs `UE_LOG(LogNpcEngine, Error, "Seeder halted NodeId=%s Status=%d", …)` on any non-2xx response; does not silently continue
-  - [ ] All upserts are non-blocking: return immediately; callbacks fire on game thread
-- [ ] Author `Content/Seed/DemoWorld_v1.json` — single source of truth for all demo content:
-  - [ ] **Location nodes** (node_type `Location`): `loc_tavern` (The [chosen name]), `loc_tavern_back` (Back Room), `loc_market_square` (Market Square), `loc_guard_barracks` (Guard Barracks). Display text uses "Thornfield" as town name.
-  - [ ] **Character nodes** — all 5 NPCs with exact personality values from §7.3:
+- [x] **Reconcile tavern name conflict** — chosen: **"The Broken Flagon"** (DEC-017). `docs/STORYBOARD.md` updated. Propagated to `Content/Seed/DemoWorld_v1.json`. Town name "Thornfield" used throughout. *(2026-06-24)*
+- [x] Write failing Automation Specs for `UNpcWorldSeeder` (NpcEngineClient/Tests, Net I/O: yes): *(2026-06-24)*
+  - [x] Seeder calls `CheckNodeExists` before each `UpsertNode`; skips the upsert when node exists (idempotency)
+  - [x] Seeder processes Location nodes before Character nodes; Faction nodes before edge upserts (dependency order enforced)
+  - [x] Seeder halts and logs on any non-2xx response; does not silently continue
+  - [x] All upserts are non-blocking: return immediately; callbacks fire on game thread
+- [x] Author `Content/Seed/DemoWorld_v1.json` — single source of truth for all demo content: *(2026-06-24)*
+  - [x] **Location nodes** (node_type `Location`): `loc_tavern` (The Broken Flagon), `loc_tavern_back`, `loc_market_square`, `loc_guard_barracks`. Town name "Thornfield" in all descriptors.
+  - [x] **Character nodes** — all 5 NPCs with exact personality values from §7.3:
     - `mira_innkeeper`: gossipy=82, credulity=60, honesty=55; `is_player=false`, `is_active=true`
     - `lira_fence`: gossipy=40, credulity=30, honesty=20
     - `aldric_merchant`: gossipy=50, credulity=50, honesty=70; biography: *"Formerly traded textiles in Riverwheel before settling in Thornfield as a wine merchant."*
     - `captain_sorn`: gossipy=25, credulity=20, honesty=85
     - `old_henryk`: gossipy=90, credulity=95, honesty=40
-  - [ ] **Player node**: id=`player_demo`, name=`"Traveler"`, is_player=true, currency_balance=60, archetype=`"adventurer"`; property shape per `docs/ENGINE_CONTRACT.md` §5
-  - [ ] **Faction nodes**: Guard faction, Thieves' Guild faction
-  - [ ] **Event node**: `northern_war_begins` with authored distortion text per hop (§7.2 verbatim):
-    - Source text (Sorn firsthand): *"Border soldiers are deserting their posts. A skirmish at the northern pass has been suppressed from official reports."*
-    - Hop 1 text (Mira rumor): *"There's fighting up north. Someone said half the garrison moved out last week."*
-    - Hop 2 text (Henryk distorted): *"I heard the whole northern army's fled to the hills. War's already started, they say."*
-  - [ ] **Edges** (all after dependent nodes are seeded):
-    - `LOCATED_AT`: each NPC → their home location
-    - `MEMBER_OF`: `lira_fence` → Thieves' Guild; `captain_sorn` → Guard
-    - `KNOWS_ABOUT`: `captain_sorn` → `northern_war_begins` (the propagating event source)
-    - `RELATES_TO`: initial neutral stubs between NPCs who would know each other
-  - [ ] **Quest nodes**: `find_wine_merchant`, `deliver_amulet`, `aldric_confession`, `patrol_duty`, `captain_report`, `missing_goods`, `fence_confrontation` — each with objective text and chain links per §7.6
-  - [ ] **Memory badge lookup stub**: `TMap<FName, FText>` entries for all memory node IDs in the seed. Placeholder display text is acceptable here; full authored text delivered in Phase 10.
-  - [ ] Note: Slice 2 NPC deep inner-life content (beliefs, secrets, goals beyond basic biography) is expanded in Phases 5–6 via admin endpoints. Add task: verify whether `POST /v1/admin/memories/{character_id}` (and belief/secret endpoints) are needed for `aldric_confession` seeding and record seeding path in DECISIONS.md.
-- [ ] Implement `UNpcWorldSeeder` in NpcEngineClient module (Net I/O: yes):
-  - [ ] Reads `DemoWorld_v1.json` using `FFileHelper`; JSON parsing stays in NpcEngineClient (never in DemoGame)
-  - [ ] For each node: `CheckNodeExists` → if found log `"Skipped: {id}"` and skip; else `UpsertNode` (`POST /v1/graph/nodes/{node_type}` with `{ "properties": {...} }`)
-  - [ ] For each edge: `UpsertEdge` (`POST /v1/graph/edges/{edge_type}` with `{ "src_id", "dst_id", "properties" }`) — MERGE semantics; both endpoint nodes must already be seeded
-  - [ ] Seed order enforced: Locations → Factions → Characters → Edges → Quest nodes
-  - [ ] On any non-2xx: `UE_LOG(LogNpcEngine, Error, …)` and halt; never silently continue
-  - [ ] Non-blocking: each upsert is async; callbacks fire on game thread
-- [ ] Exec command `NpcEngine.SeedWorld` (FAutoConsoleCommandWithWorld in NpcEngineClient) triggers seeder from the in-game console; does not require a live `APlayerController`
-- [ ] Verify: run seeder twice against a live engine. Second run logs 0 new nodes created (all skipped by idempotency check).
-- [ ] Reconcile `DemoWorld_v1.json` with `docs/ENGINE_CONTRACT.md`. Any property shape drift → patch the seed before proceeding.
+  - [x] **Player node**: id=`player_demo`, name=`"Traveler"`, is_player=true, currency_balance=60, archetype=`"adventurer"`
+  - [x] **Faction nodes**: `guard_faction` (City Guard), `thieves_guild` (Thieves Guild)
+  - [x] **Event node**: `northern_war_begins` with authored source/hop-1/hop-2 distortion texts per §7.2 verbatim
+  - [x] **Edges**: `LOCATED_AT` (all 5 NPCs), `MEMBER_OF` (Lira → guild, Sorn → guard), `KNOWS_ABOUT` (Sorn → northern_war_begins), `RELATES_TO` (neutral stubs)
+  - [x] **Quest nodes**: `find_wine_merchant`, `deliver_amulet`, `aldric_confession`, `patrol_duty`, `captain_report`, `missing_goods`, `fence_confrontation` — each with objective text and chain links per §7.6
+  - [ ] **Memory badge lookup stub**: `TMap<FName, FText>` entries for all memory node IDs in the seed. *(deferred: DataAsset work; wired in Phase 4/10)*
+  - [x] Note: Slice 2 NPC deep inner-life deferred to Phase 5 via admin endpoints. DEC-018 records the decision and seeding path. *(2026-06-24)*
+- [x] Implement `UNpcWorldSeeder` in NpcEngineClient module (Net I/O: yes): *(2026-06-24)*
+  - [x] Reads `DemoWorld_v1.json` using `FFileHelper`; JSON parsing stays in NpcEngineClient
+  - [x] For each node: `CheckNodeExists` → skip if found (logs `"Skipped NodeId=..."`) else `UpsertNode`
+  - [x] For each edge: `UpsertEdge` — MERGE semantics; both endpoint nodes already seeded
+  - [x] Seed order enforced: Locations → Factions → Characters → Events → Edges → Quest nodes
+  - [x] On any non-2xx: `UE_LOG(LogNpcEngine, Error, …)` and halt; never silently continue
+  - [x] Non-blocking: each upsert async; callbacks fire on game thread. `SetHttpExecutorForTesting` seam for specs.
+- [x] Exec command `NpcEngine.SeedWorld` (FAutoConsoleCommandWithWorld in NpcEngineClient) — registered at bottom of `NpcWorldSeeder.cpp`; does not require a live `APlayerController`. *(2026-06-24)*
+- [ ] Verify: run seeder twice against a live engine. Second run logs 0 new nodes created (all skipped by idempotency check). *(requires live engine — manual gate)*
+- [x] Reconcile `DemoWorld_v1.json` with `docs/ENGINE_CONTRACT.md`. Property shapes verified against §4 and existing `Seed/slice1_tavern.json` — consistent. *(2026-06-24)*
 
 ---
 

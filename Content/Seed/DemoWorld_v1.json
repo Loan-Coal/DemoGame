@@ -1,0 +1,300 @@
+{
+  "_comment": "DemoGame full world seed — owned by the game, replayed via UNpcWorldSeeder. Idempotent (engine uses MERGE semantics). Seed order enforced by UNpcWorldSeeder: locations → factions → characters → events → [edges] → quests. Inner-life (beliefs, secrets) for Aldric is deferred to Phase 5 admin endpoints (DEC-018). Tavern name: The Broken Flagon (DEC-017). Town: Thornfield.",
+  "locations": [
+    {
+      "node_type": "Location",
+      "properties": {
+        "id": "loc_tavern",
+        "name": "The Broken Flagon",
+        "location_tag": "tavern",
+        "descriptor": "The main tavern floor of The Broken Flagon in Thornfield — worn oak tables, a hearth that never quite warms the room, and Mira behind the bar.",
+        "region": "city"
+      }
+    },
+    {
+      "node_type": "Location",
+      "properties": {
+        "id": "loc_tavern_back",
+        "name": "Back Room",
+        "location_tag": "tavern_back",
+        "descriptor": "A dim storeroom behind the bar in The Broken Flagon. Lira operates here. Access requires Mira's trust.",
+        "region": "city"
+      }
+    },
+    {
+      "node_type": "Location",
+      "properties": {
+        "id": "loc_market_square",
+        "name": "Market Square",
+        "location_tag": "market",
+        "descriptor": "The open cobblestone courtyard at the centre of Thornfield. Merchant stalls, a notice board, and the constant murmur of commerce.",
+        "region": "city"
+      }
+    },
+    {
+      "node_type": "Location",
+      "properties": {
+        "id": "loc_guard_barracks",
+        "name": "Guard Barracks",
+        "location_tag": "barracks",
+        "descriptor": "The stone courtyard outside the Thornfield guard barracks. Captain Sorn's territory.",
+        "region": "city"
+      }
+    }
+  ],
+  "factions": [
+    {
+      "node_type": "Faction",
+      "properties": {
+        "id": "guard_faction",
+        "name": "City Guard",
+        "archetype": "military",
+        "description": "Thornfield's standing guard, answerable to the crown. Captain Sorn commands the local garrison.",
+        "is_active": true
+      }
+    },
+    {
+      "node_type": "Faction",
+      "properties": {
+        "id": "thieves_guild",
+        "name": "Thieves Guild",
+        "archetype": "criminal",
+        "description": "A shadow organisation that lives in the cracks of Thornfield. Lira is a local contact.",
+        "is_active": true
+      }
+    }
+  ],
+  "characters": [
+    {
+      "node_type": "Character",
+      "properties": {
+        "id": "player_demo",
+        "name": "Traveler",
+        "archetype": "adventurer",
+        "faction": "neutral",
+        "biography": "A wandering adventurer seeking fortune in Thornfield.",
+        "is_player": true,
+        "is_active": true,
+        "gossipy": 50,
+        "credulity": 50,
+        "honesty": 60,
+        "currency_balance": 60
+      }
+    },
+    {
+      "node_type": "Character",
+      "properties": {
+        "id": "mira_innkeeper",
+        "name": "Mira",
+        "archetype": "innkeeper",
+        "faction": "neutral",
+        "biography": "Runs The Broken Flagon in Thornfield with an even hand and a sharp ear. Warm but guarded; never says more than she needs to.",
+        "is_player": false,
+        "is_active": true,
+        "gossipy": 82,
+        "credulity": 60,
+        "honesty": 55,
+        "current_mood": "neutral",
+        "voice_descriptor": "Warm, observant. Cautious about politics — frames hard news as rumour or second-hand. Shares under trust."
+      }
+    },
+    {
+      "node_type": "Character",
+      "properties": {
+        "id": "lira_fence",
+        "name": "Lira",
+        "archetype": "fence",
+        "faction": "thieves_guild",
+        "biography": "Moves stolen goods from The Broken Flagon's back room with a smile and a story, always one step ahead of the guard.",
+        "is_player": false,
+        "is_active": true,
+        "gossipy": 40,
+        "credulity": 30,
+        "honesty": 20,
+        "current_mood": "neutral",
+        "voice_descriptor": "Light, deflective. Turns every question into a joke or a counter-question. Sees the northern war as leverage."
+      }
+    },
+    {
+      "node_type": "Character",
+      "properties": {
+        "id": "aldric_merchant",
+        "name": "Aldric",
+        "archetype": "merchant",
+        "faction": "neutral",
+        "biography": "Formerly traded textiles in Riverwheel before settling in Thornfield as a wine merchant. Cautious, honest when pressed, and currently spooked by guardsmen asking questions at his stall.",
+        "is_player": false,
+        "is_active": true,
+        "gossipy": 50,
+        "credulity": 50,
+        "honesty": 70,
+        "current_mood": "nervous",
+        "voice_descriptor": "Measured and polite. Becomes evasive when the amulet or the northern road comes up. Rewards trust with candour."
+      }
+    },
+    {
+      "node_type": "Character",
+      "properties": {
+        "id": "captain_sorn",
+        "name": "Captain Sorn",
+        "archetype": "guard_captain",
+        "faction": "guard_faction",
+        "biography": "Commands the Thornfield garrison. Direct, stoic, and correct in his facts. Knows the real situation at the northern pass and will not share it lightly.",
+        "is_player": false,
+        "is_active": true,
+        "gossipy": 25,
+        "credulity": 20,
+        "honesty": 85,
+        "current_mood": "guarded",
+        "voice_descriptor": "Blunt and measured. Economy of words. Hard trust arc — requires honesty and persistence."
+      }
+    },
+    {
+      "node_type": "Character",
+      "properties": {
+        "id": "old_henryk",
+        "name": "Old Henryk",
+        "archetype": "merchant",
+        "faction": "neutral",
+        "biography": "A fixture of Thornfield's market square. Has been here longer than anyone remembers and has heard everything — most of it wrong.",
+        "is_player": false,
+        "is_active": true,
+        "gossipy": 90,
+        "credulity": 95,
+        "honesty": 40,
+        "current_mood": "neutral",
+        "voice_descriptor": "Garrulous, enthusiastic, unreliable. Repeats everything he hears and embellishes freely. The end of every rumour chain."
+      }
+    }
+  ],
+  "events": [
+    {
+      "node_type": "Event",
+      "properties": {
+        "id": "northern_war_begins",
+        "name": "Northern War Begins",
+        "description": "A skirmish at the northern pass has been suppressed from official reports. Border soldiers are deserting.",
+        "source_npc_id": "captain_sorn",
+        "source_text": "Border soldiers are deserting their posts. A skirmish at the northern pass has been suppressed from official reports.",
+        "hop_1_text": "There's fighting up north. Someone said half the garrison moved out last week.",
+        "hop_2_text": "I heard the whole northern army's fled to the hills. War's already started, they say.",
+        "is_active": true
+      }
+    }
+  ],
+  "edges": [
+    { "edge_type": "LOCATED_AT", "src_id": "mira_innkeeper",  "dst_id": "loc_tavern",         "properties": { "is_permanent_resident": true } },
+    { "edge_type": "LOCATED_AT", "src_id": "lira_fence",      "dst_id": "loc_tavern_back",     "properties": { "is_permanent_resident": true } },
+    { "edge_type": "LOCATED_AT", "src_id": "aldric_merchant", "dst_id": "loc_market_square",   "properties": { "is_permanent_resident": true } },
+    { "edge_type": "LOCATED_AT", "src_id": "captain_sorn",    "dst_id": "loc_guard_barracks",  "properties": { "is_permanent_resident": true } },
+    { "edge_type": "LOCATED_AT", "src_id": "old_henryk",      "dst_id": "loc_market_square",   "properties": { "is_permanent_resident": true } },
+    { "edge_type": "MEMBER_OF",  "src_id": "lira_fence",      "dst_id": "thieves_guild",        "properties": { "role": "member", "status": "active" } },
+    { "edge_type": "MEMBER_OF",  "src_id": "captain_sorn",    "dst_id": "guard_faction",        "properties": { "role": "captain", "status": "active" } },
+    { "edge_type": "KNOWS_ABOUT","src_id": "captain_sorn",    "dst_id": "northern_war_begins",  "properties": { "hop_count": 0, "knowledge_state": "firsthand" } },
+    { "edge_type": "RELATES_TO", "src_id": "mira_innkeeper",  "dst_id": "aldric_merchant",      "properties": { "trust": 10, "affection": 5, "fear": 0 } },
+    { "edge_type": "RELATES_TO", "src_id": "mira_innkeeper",  "dst_id": "captain_sorn",         "properties": { "trust": 15, "affection": 0, "fear": 5 } },
+    { "edge_type": "RELATES_TO", "src_id": "old_henryk",      "dst_id": "captain_sorn",         "properties": { "trust": 5,  "affection": 0, "fear": 10 } },
+    { "edge_type": "RELATES_TO", "src_id": "old_henryk",      "dst_id": "mira_innkeeper",       "properties": { "trust": 20, "affection": 10, "fear": 0 } },
+    { "edge_type": "RELATES_TO", "src_id": "aldric_merchant", "dst_id": "captain_sorn",         "properties": { "trust": 0,  "affection": 0, "fear": 20 } }
+  ],
+  "quests": [
+    {
+      "node_type": "Quest",
+      "properties": {
+        "id": "find_wine_merchant",
+        "title": "Find the Wine Merchant",
+        "description": "Identify the wine merchant from Riverwheel through social investigation. At least two NPCs must independently point to him.",
+        "chain": "A",
+        "chain_position": 1,
+        "objectives": [
+          { "objective_id": "ask_about_merchant", "description": "Ask Mira about the wine merchant from Riverwheel.", "required_progress": 1 },
+          { "objective_id": "confirm_with_second_npc", "description": "Confirm the merchant's identity through a second NPC.", "required_progress": 1 }
+        ],
+        "next_quest_id": "deliver_amulet"
+      }
+    },
+    {
+      "node_type": "Quest",
+      "properties": {
+        "id": "deliver_amulet",
+        "title": "Deliver the Amulet",
+        "description": "Deliver the amulet to Aldric the wine merchant — or sell it to Lira for the guild.",
+        "chain": "A",
+        "chain_position": 2,
+        "objectives": [
+          { "objective_id": "choose_delivery", "description": "Deliver the amulet to Aldric (neutral/guard) or sell to Lira (guild).", "required_progress": 1 }
+        ],
+        "fork_quest_ids": { "deliver": "aldric_confession", "sell": "aldric_confession" },
+        "next_quest_id": "aldric_confession"
+      }
+    },
+    {
+      "node_type": "Quest",
+      "properties": {
+        "id": "aldric_confession",
+        "title": "Aldric's Confession",
+        "description": "Aldric reveals the amulet's connection to the northern war and the desertion he unwittingly enabled.",
+        "chain": "A",
+        "chain_position": 3,
+        "objectives": [
+          { "objective_id": "hear_confession", "description": "Hear Aldric's account of how he came to hold the amulet.", "required_progress": 1 }
+        ]
+      }
+    },
+    {
+      "node_type": "Quest",
+      "properties": {
+        "id": "patrol_duty",
+        "title": "Patrol Duty",
+        "description": "Escort a patrol route and report back to Captain Sorn. Unlocked when Sorn's trust exceeds the threshold.",
+        "chain": "B",
+        "chain_position": 1,
+        "trust_gate_npc": "captain_sorn",
+        "objectives": [
+          { "objective_id": "complete_patrol", "description": "Escort the patrol route and return to Sorn.", "required_progress": 1 }
+        ],
+        "next_quest_id": "captain_report"
+      }
+    },
+    {
+      "node_type": "Quest",
+      "properties": {
+        "id": "captain_report",
+        "title": "Captain's Report",
+        "description": "Captain Sorn shares the unfiltered news from the northern pass as a reward for completing the patrol.",
+        "chain": "B",
+        "chain_position": 2,
+        "objectives": [
+          { "objective_id": "receive_report", "description": "Receive Sorn's unfiltered account of the northern skirmish.", "required_progress": 1 }
+        ]
+      }
+    },
+    {
+      "node_type": "Quest",
+      "properties": {
+        "id": "missing_goods",
+        "title": "Missing Goods",
+        "description": "Locate a diverted guild shipment. Unlocked by Lira after the amulet sell.",
+        "chain": "C",
+        "chain_position": 1,
+        "objectives": [
+          { "objective_id": "find_shipment", "description": "Locate the diverted shipment and identify who took it.", "required_progress": 1 }
+        ],
+        "next_quest_id": "fence_confrontation"
+      }
+    },
+    {
+      "node_type": "Quest",
+      "properties": {
+        "id": "fence_confrontation",
+        "title": "The Fence Confrontation",
+        "description": "Confront the person responsible for diverting the guild shipment.",
+        "chain": "C",
+        "chain_position": 2,
+        "objectives": [
+          { "objective_id": "confront_fence", "description": "Confront the person responsible for the missing goods.", "required_progress": 1 }
+        ]
+      }
+    }
+  ]
+}

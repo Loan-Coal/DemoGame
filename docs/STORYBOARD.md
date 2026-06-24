@@ -4,7 +4,7 @@
 
 | Slice | Location | NPCs | Goal |
 |-------|----------|------|------|
-| **1 — Tavern** | The Rusty Flagon (`loc_tavern`) | `mira_innkeeper`, `lira_fence` | Prove the pipe: free-text dialogue, NPC memory, relationship deltas, emotion |
+| **1 — Tavern** | The Broken Flagon (`loc_tavern`) | `mira_innkeeper`, `lira_fence` | Prove the pipe: free-text dialogue, NPC memory, relationship deltas, emotion |
 | **2 — Village** | Market square + guard barracks | `aldric_merchant`, `captain_sorn`, `old_henryk` | Gossip chain, 2-hop distortion, faction knowledge |
 | **3+ — Outward** | TBD (forests, dungeons, court) | TBD | Full world, quests, multi-NPC planning |
 
@@ -12,7 +12,7 @@
 
 ## Slice 1 — TAVERN (filled)
 
-### Location: The Rusty Flagon
+### Location: The Broken Flagon
 - Worn wooden interior; firelight; low murmur of other patrons (background NPCs, NOT full MetaHumans).
 - Two hero MetaHuman NPCs maximum: **Mira** (behind bar) + **Lira** (corner booth).
 - Player enters via tavern door transition trigger.

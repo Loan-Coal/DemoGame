@@ -78,6 +78,16 @@ new entry that references the old one.
 **Decision:** `ANpcLocation::BeginPlay()` registers `OnComponentBeginOverlap` on its own `TriggerVolume`. The handler checks that the overlapping actor is a player-controlled pawn, then calls `UNpcWorldSubsystem::OnPlayerArrived`. The player character (`ADemoGameCharacter`) is not modified.
 **Why:** The ROADMAP described "player character registers with each ANpcLocation trigger volume" as the intended outcome. Implementing it on the location actor is equivalent in result, avoids an actor-iteration race condition (character constructed before locations exist), follows SRP (location actor owns its own trigger), and avoids modifying an actor that doesn't need to change.
 
+## DEC-017: Canonical tavern name — "The Broken Flagon"
+**Date:** 2026-06-24
+**Decision:** The tavern at `loc_tavern` is named **"The Broken Flagon"** in all authored content and seed data. The name "The Rusty Flagon" used in `docs/STORYBOARD.md` was a stale draft label; `docs/game_design_roadmap.md` §7.1 (the canonical v1.0 GDD) uses "The Broken Flagon" and is the source of truth. `docs/STORYBOARD.md` updated to match.
+**Why:** A single canonical name prevents authored text divergence across seed files, notice boards, NPC dialogue context, and fallback lines. The GDD is the authoritative design doc; the storyboard was an earlier draft.
+
+## DEC-018: Aldric inner-life seeding via admin endpoints — deferred to Phase 5
+**Date:** 2026-06-24
+**Decision:** The `aldric_confession` belief (`aldric_merchant.belief["amulet_origin"]`) and secret (`aldric_merchant.secret["amulet_truth"]`) are **NOT** seeded in Phase 3. They will be seeded in Phase 5 via `POST /v1/admin/memories/{character_id}` (or equivalent belief/secret endpoint) when the quest chain that requires them is implemented. Phase 3 seeds Aldric's Character node with biography only.
+**Why:** The admin endpoints (`/v1/admin/...`) are out of scope for Phase 3 seeding per ENGINE_CONTRACT.md §4. The belief/secret data only becomes load-bearing in Phase 5 (`aldric_confession` quest step). Seeding it early creates a dependency on admin API shape verification that belongs to Phase 5. The Phase 5 seeding path will be recorded in a dedicated DEC entry at that time.
+
 ## DEC-015: AdvanceClock added to INpcDialogueService (ISP note)
 **Date:** 2026-06-24
 **Decision:** `AdvanceClock(int32 DeltaTicks, TFunction<void(bool)> OnResult, FOnNpcEngineError OnError)` is added as a pure virtual to `INpcDialogueService`. The `UNpcWorldSubsystem` (DemoGame) calls it through the interface. The method signature follows the same async+callback pattern as the other interface methods. ISP note: the interface now carries one world-clock method alongside the dialogue methods. If a future consumer needs only clock ticks (e.g. a dedicated time subsystem with no dialogue), split off an `INpcWorldService` interface at that point. Do not split preemptively — one extra method does not violate ISP in practice.
