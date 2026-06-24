@@ -52,13 +52,34 @@ void UNpcWorldSeeder::SeedFromJsonString(
 {
     EnsureHttpExec();
 
+    // GC-pin this UObject for the async duration.  CheckNodeExists/PostUpsert* capture
+    // 'this' in lambdas; without pinning a GC cycle between two async steps would dangle it.
+    AddToRoot();
+    TFunction<void()> PinnedComplete = [this, OnComplete = MoveTemp(OnComplete)]()
+    {
+        RemoveFromRoot();
+        if (OnComplete) OnComplete();
+    };
+    TFunction<void(const FString&)> PinnedError = [this, OnError = MoveTemp(OnError)](const FString& Err)
+    {
+        RemoveFromRoot();
+        if (OnError) OnError(Err);
+    };
+
+    // If config was invalid EnsureHttpExec leaves HttpExec null; fail fast here.
+    if (!HttpExec)
+    {
+        PinnedError(TEXT("SeedWorld: NpcEngineConfig invalid — missing URL or API key"));
+        return;
+    }
+
     TArray<FNodeTask> PreEdge, PostEdge;
     TArray<FEdgeTask> Edges;
     FString ParseErr;
     if (!BuildTasksFromJson(JsonContent, PreEdge, Edges, PostEdge, ParseErr))
     {
         UE_LOG(LogNpcEngine, Error, TEXT("SeedWorld: JSON parse error — %s"), *ParseErr);
-        if (OnError) OnError(ParseErr);
+        PinnedError(ParseErr);
         return;
     }
 
@@ -69,7 +90,7 @@ void UNpcWorldSeeder::SeedFromJsonString(
     ProcessNodes(
         MoveTemp(PreEdge), 0,
         MoveTemp(Edges), MoveTemp(PostEdge),
-        MoveTemp(OnComplete), MoveTemp(OnError));
+        MoveTemp(PinnedComplete), MoveTemp(PinnedError));
 }
 
 void UNpcWorldSeeder::SetHttpExecutorForTesting(FNpcSeederHttpExec Exec)
@@ -84,6 +105,13 @@ void UNpcWorldSeeder::EnsureHttpExec()
     if (HttpExec) return;
 
     FNpcEngineConfig Config = FNpcEngineConfig::Load();
+    if (!Config.IsValid())
+    {
+        UE_LOG(LogNpcEngine, Error, TEXT("SeedWorld: NpcEngineConfig invalid — missing URL or API key"));
+        // Leave HttpExec null; SeedFromJsonString checks and fires OnError.
+        return;
+    }
+    CachedBaseUrl = Config.GetBaseUrl();  // single source; BuildUrl uses this
     HttpExec = [Config](const FString& Verb, const FString& Url, const FString& Body,
                         TFunction<void(int32, const FString&)> OnResult)
     {
@@ -107,8 +135,18 @@ void UNpcWorldSeeder::EnsureHttpExec()
 
 FString UNpcWorldSeeder::BuildUrl(const FString& Path) const
 {
-    static FNpcEngineConfig Config = FNpcEngineConfig::Load();
-    return Config.GetBaseUrl() + Path;
+    return CachedBaseUrl + Path;
+}
+
+// [A-Za-z0-9_-] only — keeps node/edge IDs safe for URL path segments (H-2).
+static bool IsValidGraphId(const FString& S)
+{
+    if (S.IsEmpty()) return false;
+    for (TCHAR C : S)
+    {
+        if (!FChar::IsAlnum(C) && C != TEXT('_') && C != TEXT('-')) return false;
+    }
+    return true;
 }
 
 bool UNpcWorldSeeder::BuildTasksFromJson(
@@ -184,11 +222,19 @@ void UNpcWorldSeeder::CheckNodeExists(
     TFunction<void(bool)> OnFound,
     TFunction<void(const FString&)> OnError)
 {
+    // H-2: reject IDs with characters that would corrupt the URL path.
+    if (!IsValidGraphId(NodeType) || !IsValidGraphId(NodeId))
+    {
+        if (OnError) OnError(FString::Printf(
+            TEXT("CheckNodeExists: invalid NodeType=%s or NodeId=%s"), *NodeType, *NodeId));
+        return;
+    }
+
     const FString Url = BuildUrl(
         FString::Printf(TEXT("/v1/graph/nodes/%s/%s"), *NodeType, *NodeId));
 
     HttpExec(TEXT("GET"), Url, TEXT(""),
-        [OnFound, OnError, NodeId](int32 Status, const FString& Body)
+        [OnFound, OnError, NodeType, NodeId](int32 Status, const FString& Body)
         {
             if (Status == -1)
             {
@@ -200,19 +246,31 @@ void UNpcWorldSeeder::CheckNodeExists(
                 if (OnError) OnError(FString::Printf(TEXT("CheckNodeExists: Status=%d NodeId=%s"), Status, *NodeId));
                 return;
             }
+            // H-4: auth errors must not silently proceed to upsert.
+            if (Status >= 400 && Status < 500 && Status != 404)
+            {
+                if (OnError) OnError(FString::Printf(
+                    TEXT("CheckNodeExists: client error Status=%d NodeId=%s"), Status, *NodeId));
+                return;
+            }
             if (Status == 404)  { if (OnFound) OnFound(false); return; }
             if (Status >= 200 && Status < 300)
             {
                 TSharedPtr<FJsonObject> Env;
                 TSharedRef<TJsonReader<>> R = TJsonReaderFactory<>::Create(Body);
                 const bool bParsed = FJsonSerializer::Deserialize(R, Env) && Env.IsValid();
-                const TSharedPtr<FJsonValue>* Data = bParsed ? Env->Values.Find(TEXT("data")) : nullptr;
+                // H-1: a 200 with an unparseable body is a server anomaly — fail fast.
+                if (!bParsed)
+                {
+                    if (OnError) OnError(FString::Printf(
+                        TEXT("CheckNodeExists: malformed 200 body NodeId=%s"), *NodeId));
+                    return;
+                }
+                const TSharedPtr<FJsonValue>* Data = Env->Values.Find(TEXT("data"));
                 const bool bExists = Data && (*Data)->Type != EJson::Null;
                 if (OnFound) OnFound(bExists);
                 return;
             }
-            // Other 4xx — treat as absent (conservative; node might not exist)
-            if (OnFound) OnFound(false);
         });
 }
 
@@ -221,22 +279,44 @@ void UNpcWorldSeeder::CheckNodeExists(
 void UNpcWorldSeeder::PostUpsertNode(
     const FString& NodeType, const FString& PropertiesJson, TFunction<void(bool)> OnResult)
 {
+    if (!IsValidGraphId(NodeType))
+    {
+        UE_LOG(LogNpcEngine, Warning, TEXT("PostUpsertNode: invalid NodeType=%s — skipping"), *NodeType);
+        if (OnResult) OnResult(false);
+        return;
+    }
     const FString Body = FNpcEngineJsonUtils::SerialiseNodeWrite(PropertiesJson);
     const FString Url  = BuildUrl(FString::Printf(TEXT("/v1/graph/nodes/%s"), *NodeType));
     HttpExec(TEXT("POST"), Url, Body,
-        [OnResult](int32 Status, const FString& /*Body*/)
+        [OnResult, NodeType](int32 Status, const FString& /*Body*/)
         {
+            // M-2: include status in failure path for structured logging at call site.
+            if (Status < 200 || Status >= 300)
+            {
+                UE_LOG(LogNpcEngine, Warning, TEXT("PostUpsertNode: Status=%d NodeType=%s"), Status, *NodeType);
+            }
             if (OnResult) OnResult(Status >= 200 && Status < 300);
         });
 }
 
 void UNpcWorldSeeder::PostUpsertEdge(const FEdgeTask& Task, TFunction<void(bool)> OnResult)
 {
+    if (!IsValidGraphId(Task.EdgeType) || !IsValidGraphId(Task.SrcId) || !IsValidGraphId(Task.DstId))
+    {
+        UE_LOG(LogNpcEngine, Warning, TEXT("PostUpsertEdge: invalid edge ids EdgeType=%s Src=%s Dst=%s — skipping"),
+            *Task.EdgeType, *Task.SrcId, *Task.DstId);
+        if (OnResult) OnResult(false);
+        return;
+    }
     const FString Body = FNpcEngineJsonUtils::SerialiseEdgeWrite(Task.SrcId, Task.DstId, Task.PropertiesJson);
     const FString Url  = BuildUrl(FString::Printf(TEXT("/v1/graph/edges/%s"), *Task.EdgeType));
     HttpExec(TEXT("POST"), Url, Body,
-        [OnResult](int32 Status, const FString& /*Body*/)
+        [OnResult, EdgeType = Task.EdgeType](int32 Status, const FString& /*Body*/)
         {
+            if (Status < 200 || Status >= 300)
+            {
+                UE_LOG(LogNpcEngine, Warning, TEXT("PostUpsertEdge: Status=%d EdgeType=%s"), Status, *EdgeType);
+            }
             if (OnResult) OnResult(Status >= 200 && Status < 300);
         });
 }
@@ -327,25 +407,17 @@ void UNpcWorldSeeder::ProcessEdges(
 
 namespace
 {
+    // SeedFromJsonString (called via SeedWorld) pins 'this' via AddToRoot/RemoveFromRoot for the
+    // async duration — no manual root management needed here.
     void RunNpcEngineSeedWorld(UWorld* /*World*/)
     {
         UE_LOG(LogNpcEngine, Display, TEXT("=== NpcEngine.SeedWorld BEGIN ==="));
-
-        UNpcWorldSeeder* Seeder = NewObject<UNpcWorldSeeder>();
-        Seeder->AddToRoot();
-
-        Seeder->SeedWorld(
-            [Seeder]()
+        NewObject<UNpcWorldSeeder>()->SeedWorld(
+            []() { UE_LOG(LogNpcEngine, Display, TEXT("=== NpcEngine.SeedWorld COMPLETE ===")); },
+            [](const FString& Err)
             {
-                UE_LOG(LogNpcEngine, Display, TEXT("=== NpcEngine.SeedWorld COMPLETE ==="));
-                Seeder->RemoveFromRoot();
-            },
-            [Seeder](const FString& Err)
-            {
-                UE_LOG(LogNpcEngine, Error,
-                    TEXT("NpcEngine.SeedWorld FAILED Error=%s"), *Err);
+                UE_LOG(LogNpcEngine, Error, TEXT("NpcEngine.SeedWorld FAILED Error=%s"), *Err);
                 UE_LOG(LogNpcEngine, Display, TEXT("=== NpcEngine.SeedWorld END (error) ==="));
-                Seeder->RemoveFromRoot();
             });
     }
 }

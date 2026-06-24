@@ -137,7 +137,7 @@ fails for the right reason, implement minimal to pass, refactor green. Gameplay 
 
 ---
 
-## Phase 3 — Seeder + Seed Data
+## Phase 3 — Seeder + Seed Data *(C++ + JSON seed complete 2026-06-24; live engine verification pending)*
 
 **Goal:** DemoGame owns all world seeding; running the seeder against a fresh engine builds the complete demo world idempotently.
 **Independently demoable:** Seeder runs to completion with 0 errors; second consecutive run logs 0 new nodes created (all skipped by idempotency check).

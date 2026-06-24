@@ -70,6 +70,7 @@ private:
     struct FEdgeTask { FString EdgeType; FString SrcId; FString DstId; FString PropertiesJson; };
 
     FNpcSeederHttpExec HttpExec;
+    FString CachedBaseUrl;  // set once in EnsureHttpExec; empty string signals invalid config
 
     void EnsureHttpExec();
     FString BuildUrl(const FString& Path) const;

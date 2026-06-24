@@ -88,6 +88,12 @@ new entry that references the old one.
 **Decision:** The `aldric_confession` belief (`aldric_merchant.belief["amulet_origin"]`) and secret (`aldric_merchant.secret["amulet_truth"]`) are **NOT** seeded in Phase 3. They will be seeded in Phase 5 via `POST /v1/admin/memories/{character_id}` (or equivalent belief/secret endpoint) when the quest chain that requires them is implemented. Phase 3 seeds Aldric's Character node with biography only.
 **Why:** The admin endpoints (`/v1/admin/...`) are out of scope for Phase 3 seeding per ENGINE_CONTRACT.md §4. The belief/secret data only becomes load-bearing in Phase 5 (`aldric_confession` quest step). Seeding it early creates a dependency on admin API shape verification that belongs to Phase 5. The Phase 5 seeding path will be recorded in a dedicated DEC entry at that time.
 
+## DEC-019: NpcWorldSeeder.cpp above 400-line target — justified, no split yet
+**Date:** 2026-06-24
+**Decision:** `NpcWorldSeeder.cpp` is 429 lines (target ≤400, ceiling 500). No split before Phase 4 merge.
+**Why:** The overage is from post-review safety fixes: GC pinning (C-2), config validity check (C-1/M-3), ID sanitisation (H-2), malformed-200 guard (H-1), 4xx-auth halt (H-4), upsert status logging (M-2). All added lines are load-bearing correctness code, not padding. The file remains under the 500-line hard ceiling.
+**Split plan (ISSUE-001):** If the file grows past ~450 lines, extract `CheckNodeExists` + `PostUpsertNode`/`PostUpsertEdge` into `NpcWorldSeederHttp.cpp` before the next phase merge.
+
 ## DEC-015: AdvanceClock added to INpcDialogueService (ISP note)
 **Date:** 2026-06-24
 **Decision:** `AdvanceClock(int32 DeltaTicks, TFunction<void(bool)> OnResult, FOnNpcEngineError OnError)` is added as a pure virtual to `INpcDialogueService`. The `UNpcWorldSubsystem` (DemoGame) calls it through the interface. The method signature follows the same async+callback pattern as the other interface methods. ISP note: the interface now carries one world-clock method alongside the dialogue methods. If a future consumer needs only clock ticks (e.g. a dedicated time subsystem with no dialogue), split off an `INpcWorldService` interface at that point. Do not split preemptively — one extra method does not violate ISP in practice.
