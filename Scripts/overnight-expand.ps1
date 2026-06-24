@@ -1,7 +1,7 @@
 <#
 .SYNOPSIS
   Overnight autonomous roadmap runner. Repeatedly invokes Claude Code headless to advance
-  ROADMAP.md ONE phase at a time, each in a FRESH session (clean context — no ballooning).
+  ROADMAP.md ONE phase at a time, each in a FRESH session (clean context, no ballooning).
 
 .DESCRIPTION
   Each iteration:
@@ -9,7 +9,7 @@
     2. Runs `claude -p` (fresh session) with Scripts/overnight-prompt.md as the instruction set.
        The session does one phase's headless work, runs the full gate, commits per step, and
        logs any Unreal-Editor-only work to project-harness/HUMAN_VERIFICATION.md.
-    3. Compares git HEAD. If a new commit landed -> progress -> continue. If not -> stop.
+    3. Compares git HEAD. New commit -> progress -> continue. No commit -> stop.
   Session output (stream-json) is saved per iteration to project-harness/overnight-logs/ for
   the morning tool-usage analysis (Scripts/extract_tools.py).
 
@@ -79,13 +79,13 @@ $completed = 0
 for ($i = 1; $i -le $MaxIterations; $i++) {
 
     if (Test-Path $StopFile) {
-        Log "STOP-OVERNIGHT file present -> stopping before iteration $i."
+        Log "STOP-OVERNIGHT file present -> stopping before iteration ${i}."
         break
     }
 
     $before = (git rev-parse HEAD).Trim()
     $stream = Join-Path $LogDir ("iter{0:D2}.stream.jsonl" -f $i)
-    Log "--- Iteration $i/$MaxIterations | HEAD before = $($before.Substring(0,8)) ---"
+    Log "--- Iteration ${i}/$MaxIterations | HEAD before = $($before.Substring(0,8)) ---"
 
     # Fresh headless session. stdin carries the prompt; stream-json captured for tool analysis.
     # --dangerously-skip-permissions: required for unattended; tool usage is logged for review.
@@ -103,10 +103,10 @@ for ($i = 1; $i -le $MaxIterations; $i++) {
     if ($after -ne $before) {
         $n = (git rev-list --count "$before..$after")
         $completed++
-        Log "Iteration $i: PROGRESS — $n new commit(s). HEAD=$($after.Substring(0,8)). $status"
+        Log "Iteration ${i}: PROGRESS - $n new commit(s). HEAD=$($after.Substring(0,8)). $status"
     }
     else {
-        Log "Iteration $i: NO NEW COMMIT. $status"
+        Log "Iteration ${i}: NO NEW COMMIT. $status"
         if ($status -match 'NO HEADLESS WORK REMAINING') {
             Log "Runner reports no headless work remaining -> stopping."
         }
