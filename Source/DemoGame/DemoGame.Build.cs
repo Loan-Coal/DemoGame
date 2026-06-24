@@ -27,6 +27,7 @@ public class DemoGame : ModuleRules
 			"DemoGame",
 			"DemoGame/NPC",
 			"DemoGame/Dialogue",
+			"DemoGame/World",
 			"DemoGame/Variant_Platforming",
 			"DemoGame/Variant_Platforming/Animation",
 			"DemoGame/Variant_Combat",
