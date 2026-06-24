@@ -21,3 +21,7 @@ Saved/NpcEngine/
 
 # UE packaging output
 Releases/
+
+# Overnight autonomous runner — local artifacts only
+project-harness/overnight-logs/
+STOP-OVERNIGHT
