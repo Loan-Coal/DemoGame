@@ -145,6 +145,42 @@ void FNpcWorldSeederSpec::Define()
         });
     });
 
+    Describe("Full pipeline termination — all three phases succeed", [this]()
+    {
+        It("calls OnDone exactly once when pre-edge nodes, edges, and post-edge nodes all succeed", [this]()
+        {
+            // Regression: ProcessNodes finishing the post-edge phase with empty Edges previously
+            // called ProcessEdges(empty), which called ProcessNodes(empty), looping forever.
+            const FString ThreePhaseSeedJson = TEXT(
+                "{"
+                "\"locations\":[{\"node_type\":\"Location\",\"properties\":{\"id\":\"loc_a\"}}],"
+                "\"edges\":["
+                "  {\"edge_type\":\"RELATES_TO\",\"src_id\":\"char_a\",\"dst_id\":\"char_b\",\"properties\":{}}"
+                "],"
+                "\"quests\":[{\"node_type\":\"Quest\",\"properties\":{\"id\":\"quest_a\"}}]"
+                "}"
+            );
+
+            int32 DoneCount = 0;
+            UNpcWorldSeeder* Seeder = NewObject<UNpcWorldSeeder>();
+            Seeder->SetHttpExecutorForTesting(
+                [](const FString& Verb, const FString& /*Url*/, const FString& /*Body*/,
+                   TFunction<void(int32, const FString&)> OnResult)
+                {
+                    // GET = CheckNodeExists returns 404 (absent) → POST will follow.
+                    // POST = upsert succeeds.  Edge POST also succeeds.
+                    OnResult(Verb == TEXT("GET") ? 404 : 200, TEXT("{\"data\":null}"));
+                });
+
+            Seeder->SeedFromJsonString(
+                ThreePhaseSeedJson,
+                [&DoneCount]{ ++DoneCount; },
+                [this](const FString& E){ AddError(FString::Printf(TEXT("Unexpected error: %s"), *E)); });
+
+            TestEqual("OnDone fired exactly once — no infinite recursion", DoneCount, 1);
+        });
+    });
+
     Describe("Halt on error", [this]()
     {
         It("fires OnError and stops when the first HTTP call returns non-2xx", [this]()

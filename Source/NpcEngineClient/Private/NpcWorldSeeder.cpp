@@ -288,12 +288,12 @@ void UNpcWorldSeeder::PostUpsertNode(
     const FString Body = FNpcEngineJsonUtils::SerialiseNodeWrite(PropertiesJson);
     const FString Url  = BuildUrl(FString::Printf(TEXT("/v1/graph/nodes/%s"), *NodeType));
     HttpExec(TEXT("POST"), Url, Body,
-        [OnResult, NodeType](int32 Status, const FString& /*Body*/)
+        [OnResult, NodeType](int32 Status, const FString& RespBody)
         {
-            // M-2: include status in failure path for structured logging at call site.
             if (Status < 200 || Status >= 300)
             {
-                UE_LOG(LogNpcEngine, Warning, TEXT("PostUpsertNode: Status=%d NodeType=%s"), Status, *NodeType);
+                UE_LOG(LogNpcEngine, Warning,
+                    TEXT("PostUpsertNode: Status=%d NodeType=%s Detail=%s"), Status, *NodeType, *RespBody);
             }
             if (OnResult) OnResult(Status >= 200 && Status < 300);
         });
@@ -311,11 +311,12 @@ void UNpcWorldSeeder::PostUpsertEdge(const FEdgeTask& Task, TFunction<void(bool)
     const FString Body = FNpcEngineJsonUtils::SerialiseEdgeWrite(Task.SrcId, Task.DstId, Task.PropertiesJson);
     const FString Url  = BuildUrl(FString::Printf(TEXT("/v1/graph/edges/%s"), *Task.EdgeType));
     HttpExec(TEXT("POST"), Url, Body,
-        [OnResult, EdgeType = Task.EdgeType](int32 Status, const FString& /*Body*/)
+        [OnResult, EdgeType = Task.EdgeType](int32 Status, const FString& RespBody)
         {
             if (Status < 200 || Status >= 300)
             {
-                UE_LOG(LogNpcEngine, Warning, TEXT("PostUpsertEdge: Status=%d EdgeType=%s"), Status, *EdgeType);
+                UE_LOG(LogNpcEngine, Warning,
+                    TEXT("PostUpsertEdge: Status=%d EdgeType=%s Detail=%s"), Status, *EdgeType, *RespBody);
             }
             if (OnResult) OnResult(Status >= 200 && Status < 300);
         });
@@ -330,6 +331,14 @@ void UNpcWorldSeeder::ProcessNodes(
 {
     if (Index >= Tasks.Num())
     {
+        // Edges empty = post-edge phase is done; call OnDone and stop.
+        // Edges non-empty = pre-edge phase is done; advance to edge processing.
+        // Without this guard ProcessNodes and ProcessEdges recurse infinitely.
+        if (Edges.IsEmpty())
+        {
+            if (OnDone) OnDone();
+            return;
+        }
         ProcessEdges(MoveTemp(Edges), 0, MoveTemp(PostEdgeNodes),
                      MoveTemp(OnDone), MoveTemp(OnError));
         return;

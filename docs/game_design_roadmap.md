@@ -18,7 +18,7 @@
 | **Trust is the currency** | Relationships aren't cosmetic. They gate information, quest access, and trade prices. Earning trust with the right NPC at the right time moves the story forward. |
 | **Discovery over direction** | Quest objectives are described, not waypointed. The player uses social investigation to identify recipients, locate NPCs, and learn what is actually happening. |
 
-**What this is NOT:** A combat game. An open world. A chatbot with a camera. A simulation where the player watches NPCs interact without agency.
+**What this V1 is NOT:** A combat game. An open world. A chatbot with a camera. A simulation where the player watches NPCs interact without agency.
 
 ---
 
@@ -28,7 +28,7 @@
 
 **Primary fantasy:** The player is a **Quest-Runner who uses social intelligence as their primary tool.** They have a job (a delivery), but the job cannot be completed via the obvious path. To complete it, they must read the social graph: talk to the right people, earn trust, notice when information has been distorted, and trace information back to its source.
 
-**Design rule — enforced on all quest chains:** At least one step per chain must require the player to discover something socially — identify a recipient, surface a contradiction, or cross a trust threshold. "Go to waypoint and press interact" is never a valid quest step.
+**Design rule — enforced on all quest chains:** At least one step per chain must require the player to discover something socially — identify a recipient, surface a contradiction, or cross a trust threshold. "Go to waypoint and press interact" is never a valid quest in its entirety.
 
 ---
 
@@ -132,7 +132,7 @@ TALK → LEARN (including distorted information) → ACT → OBSERVE CONSEQUENCE
 |--------|------|--------------------|------|-----------|
 | `mira_innkeeper` | Mira | `gossipy: 82, credulity: 60, honesty: 55` | Social hub, gatekeeper | Nervous for business. Shares under trust. |
 | `lira_fence` | Lira | `gossipy: 40, credulity: 30, honesty: 20` | Faction fork, guild contact | Sees the war as leverage. Wants the amulet. |
-| `aldric_merchant` | Aldric | `gossipy: 50, credulity: 50, honesty: 70` | Delivery recipient, trade gate | Was in Riverwheel. The amulet connects him to the war's origin. Biography: *"Formerly traded textiles in Riverwheel before settling in Thornfield as a wine merchant."* |
+| `aldric_merchant` | Aldric | `gossipy: 50, credulity: 50, honesty: 70` | Delivery recipient, trade gate | Was in Riverwheel. The amulet connects him to the war's origin. Biography: *"Formerly traded textiles in Riverwheel before settling in Thornfield as a wine merchant."* Confession secret: received the amulet as trade debt from a deserting garrison soldier; is now holding physical evidence of the suppressed desertion. |
 | `captain_sorn` | Captain Sorn | `gossipy: 25, credulity: 20, honesty: 85` | Truth-holder, quest chain gate | Knows the real situation. Won't share without trust. Direct personality. |
 | `old_henryk` | Old Henryk | `gossipy: 90, credulity: 95, honesty: 40` | End of every rumor chain | Repeats everything, embellished. The distortion showcase. |
 
@@ -161,7 +161,9 @@ One gate type per location. Never more than one active gate at a time within a s
 **Chain A — The Amulet Delivery**
 1. `find_wine_merchant` — identify Aldric through social investigation (2+ NPC conversations minimum)
 2. `deliver_amulet` — deliver to Aldric (neutral/guard) OR sell to Lira (guild fork)
-3. `aldric_confession` — Aldric reveals the amulet's connection to the war; hooks chain B
+3. `aldric_confession` — Aldric reveals the amulet's connection to the war; hooks chain B  
+   **Authored confession:** *"This amulet — I took it as trade debt in Riverwheel from a soldier passing through. He needed coin quickly; I didn't ask why. That was weeks ago. Now I have guardsmen coming to my stall asking what I know. I understand it now: that man deserted his post. He fled the northern garrison before the skirmish was reported, and this is what he left behind. I'm holding his evidence. That's what they want."*  
+   Seed fields: `aldric_merchant.belief["amulet_origin"]` = above text. `aldric_merchant.secret["amulet_truth"]` = *"The amulet is evidence of a desertion from the northern garrison. The soldier who owned it sold it to Aldric to fund his flight from the northern pass before the skirmish the guards are suppressing."*
 
 **Chain B — Sorn's Patrol** (unlocked: Sorn trust gate)
 1. `patrol_duty` — escort a route and report back
@@ -436,7 +438,7 @@ Quixel photorealistic medieval throughout. MetaHuman characters are photorealist
   - [ ] `CompleteStep(FName QuestId, FName StepId)`: marks step complete, checks if next step unlocks, broadcasts `OnStepCompleted`
   - [ ] Quest data loaded from `DemoWorld_v1.json` (same seed file — no duplicate data)
 - [ ] `UQuestLogWidget`: active quest list. Each step has a title and a checkbox. No map markers. Quest becomes visible in log only when `ActivateQuest` is called.
-- [ ] Quest confirm prompt: UI overlay ("Accept quest: [title]?") appears when NPC dialogue resolves to a quest offer. Accept calls quest lifecycle endpoint (verify endpoint shape against live spec). Decline dismisses.
+- [ ] Quest confirm prompt: UI overlay ("Accept quest: [title]?") appears when NPC dialogue resolves to a quest offer. Accept calls `POST /v1/quest/offer` (to register the quest) then `POST /v1/quest/accept` (to mark player acceptance) — both with `{ quest_id, player_id }`. Decline dismisses. Use `POST /v1/quest/{quest_id}/choose` for the faction fork branch decision (`choice_id` = `"aldric"` or `"lira"`).
 - [ ] `UNpcFactionSubsystem`: tracks `TMap<FName /* faction_id */, int32 /* standing */>`. Updated by `POST /v1/action` responses and dialogue `relation_deltas` where the NPC is faction-affiliated.
 - [ ] Faction fork prompt: binary choice UI ("Deliver to Aldric" vs "Sell to Lira"). Choice calls `POST /v1/action` with `action_type: "sell_item"` (Lira path) or quest step completion (Aldric path). Log faction standing change to Output Log.
 - [ ] `L_TavernBack` sub-level: visible only after Mira's gate 2 clears (`trust > 40`). Gate visibility to a bool set by `UNpcWorldSubsystem` listening to `OnTrustChanged`. When gate opens, a door actor or archway becomes passable.
@@ -541,7 +543,9 @@ Quixel photorealistic medieval throughout. MetaHuman characters are photorealist
 - [ ] Author fallback canned lines for all 5 NPCs (used on 30 s LLM timeout)
 - [ ] Final gossip chain verification: 5 fresh-seed runs. All 5 must show Henryk delivering the distorted war account. If any fail, tune `DemoWorld_v1.json` personality values and rerun.
 - [ ] Final distortion review: play as a player who spoke with Sorn, then talk to Henryk. Is Henryk's version recognizably a corruption of Sorn's? If the playtest observer cannot identify the connection, exaggerate the authored distortion text and re-verify.
-- [ ] Author `aldric_confession` dialogue context: what Aldric reveals about the amulet's connection to the war. Authored in Aldric's belief/secret fields in the seed.
+- [ ] Author `aldric_confession` dialogue context — **content is decided, seed these verbatim:**  
+  - `aldric_merchant.belief["amulet_origin"]`: *"This amulet — I took it as trade debt in Riverwheel from a soldier passing through. He needed coin quickly; I didn't ask why. That was weeks ago. Now I have guardsmen coming to my stall asking what I know. I understand it now: that man deserted his post. He fled the northern garrison before the skirmish was reported, and this is what he left behind. I'm holding his evidence. That's what they want."*  
+  - `aldric_merchant.secret["amulet_truth"]`: *"The amulet is evidence of a desertion from the northern garrison. The soldier who owned it sold it to Aldric to fund his flight from the northern pass before the skirmish the guards are suppressing."*
 - [ ] `DemoWorld_v1.json` reconciled against live `GET /openapi.json` and `docs/ENGINE_CONTRACT.md`. Any property drift patched.
 - [ ] Naive user playtest: one person who has not seen the demo plays without guidance. Observer notes every moment of confusion. Fix every "what do I do next?" moment before marking acceptance.
 - [ ] Run acceptance criteria checklist (§14). All items must pass. No partial credit.
@@ -564,12 +568,34 @@ Quixel photorealistic medieval throughout. MetaHuman characters are photorealist
 
 ### Open Questions
 
-1. **Quest lifecycle endpoint shape:** Verify quest accept / complete endpoint paths and request bodies against `GET http://localhost:8000/openapi.json` before Phase 5. The curated `openapi.json` does not include these.
-2. **`/clock/advance` endpoint body:** Confirm the request body shape (`{ "delta_ticks": 1 }` or different) against the live spec before Phase 2.
-3. **Save on engine restart:** The NPC Engine persists NPC graph state server-side. If the engine is restarted between sessions, does NPC state persist across restart? Clarify with NPC Engine team. If state does not persist, the seeder must detect and re-seed on each engine restart.
-4. **Aldric's confession content:** What exactly does Aldric reveal about the amulet's connection to the northern war? This content must be authored in Phase 10. Decision: defer until Phase 9, author as a belief/secret node in the seed.
-5. **Thornfield name:** The town name is proposed as "Thornfield." Confirm and propagate to all authored text in `DemoWorld_v1.json` before Phase 3.
-6. **Village arc (demo v2):** The demo ends at beat 17. The "tavern → village" arc's village half is deferred. Requires new seed locations, new cast, and a second gossip chain seeded from the war rumor. Plan scope for v2 after demo v1 acceptance.
+1. **Quest lifecycle endpoint shape:** ~~Verify quest accept / complete endpoint paths and request bodies against `GET http://localhost:8000/openapi.json` before Phase 5. The curated `openapi.json` does not include these.~~  
+   **Resolved** — verified against `src/npc_engine/api/routes/quest/quest.py` and `api/schemas.py`. All endpoints mount under `POST /v1/quest/`. Full shapes:
+
+   | Intent | Endpoint | Minimum body |
+   |--------|----------|-------------|
+   | Offer a quest to a player | `POST /v1/quest/offer` | `{ "quest_id": "…", "player_id": "…", "title": "…", "objectives": [{"objective_id": "…", "description": "…", "required_progress": 1}], "item_rewards": [], "currency_reward": null }` |
+   | Player accepts the offer | `POST /v1/quest/accept` | `{ "quest_id": "…", "player_id": "…" }` |
+   | Advance objective progress | `POST /v1/quest/objective` | `{ "quest_id": "…", "player_id": "…", "objective_id": "…", "progress_delta": 1 }` |
+   | Check if quest is complete | `POST /v1/quest/evaluate` | `{ "quest_id": "…", "player_id": "…" }` |
+   | Apply rewards after completion | `POST /v1/quest/reward` | `{ "quest_id": "…", "player_id": "…" }` |
+   | Select a chain branch (faction fork) | `POST /v1/quest/{quest_id}/choose` | `{ "player_id": "…", "choice_id": "…" }` |
+
+   **Implementation note:** The faction fork (Aldric vs Lira) uses `POST /v1/quest/{quest_id}/choose` with `choice_id` matching the authored branch key in the seed. The engine follows the `UNLOCKS` edge whose `on_choice_id` matches and auto-offers the next quest. Use this instead of `POST /v1/action` for quest chain branching.
+
+2. **`/clock/advance` endpoint body:** ~~Confirm the request body shape (`{ "delta_ticks": 1 }` or different) against the live spec before Phase 2.~~  
+   **Resolved** — verified against `src/npc_engine/api/routes/world/clock.py`. Minimum body: `{ "delta_ticks": 1 }`. Two optional extras exist — `game_time_seconds` (int, default 1) and `advance_time_field` (string or null, advances a structured time field on WorldState) — neither is required for Phase 2. The roadmap's assumed shape is correct.
+
+3. **Save on engine restart:** ~~The NPC Engine persists NPC graph state server-side. If the engine is restarted between sessions, does NPC state persist across restart? Clarify with NPC Engine team. If state does not persist, the seeder must detect and re-seed on each engine restart.~~  
+   **Resolved** — verified in `docker-compose.yml`. Neo4j uses a named Docker volume (`neo4j_data:/data`). All graph state persists across engine restarts, including `docker-compose down` / `docker-compose up` cycles. State is only wiped if the volume is explicitly deleted (`docker-compose down -v`). The seeder's existing idempotency check (`CheckNodeExists` → skip) is the correct and sufficient strategy for all normal restart scenarios.
+
+4. **Aldric's confession content:** ~~What exactly does Aldric reveal about the amulet's connection to the northern war? This content must be authored in Phase 10. Decision: defer until Phase 9, author as a belief/secret node in the seed.~~  
+   **Resolved** — authored content confirmed. See §7.3 (Aldric cast entry) for the updated belief and §7.6 for the quest step detail. Summary: the amulet belonged to a garrison soldier who deserted from the northern pass and settled a trade debt with Aldric in Riverwheel. Aldric received it unknowingly, but when soldiers started asking about him, he understood: he is holding physical evidence of a desertion the garrison is trying to suppress.
+
+5. **Thornfield name:** ~~The town name is proposed as "Thornfield." Confirm and propagate to all authored text in `DemoWorld_v1.json` before Phase 3.~~  
+   **Resolved** — confirmed Thornfield. Already propagated in §7.1 and the Phase 10 notice-board authoring task. Use "Thornfield" in all authored text; no further confirmation needed.
+
+6. **Village arc (demo v2):** The demo ends at beat 17. The "tavern → village" arc's village half is deferred. Requires new seed locations, new cast, and a second gossip chain seeded from the war rumor. Plan scope for v2 after demo v1 acceptance.  
+   **Status:** Accepted as deferred. No action needed before demo v1 acceptance.
 
 ---
 
