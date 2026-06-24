@@ -243,38 +243,38 @@ fails for the right reason, implement minimal to pass, refactor green. Gameplay 
   - `POST /v1/quest/reward` body: `{ "quest_id", "player_id" }`
   - `POST /v1/quest/{quest_id}/choose` body: `{ "player_id", "choice_id" }` — faction fork branch
   - Record confirmation result in DECISIONS.md.
-- [ ] **Add quest lifecycle methods to `INpcDialogueService`** (or new `INpcQuestService` UInterface — record decision in DECISIONS.md with ISP rationale). Write failing Automation Specs first (NpcEngineClient/Tests, Net I/O: yes):
-  - [ ] `QuestOffer(FQuestOfferRequest)` calls `POST /v1/quest/offer` with correct body fields (no field names from memory — verify against the confirmed shapes above); returns bool success
-  - [ ] `QuestAccept(FName QuestId, FString PlayerId)` calls `POST /v1/quest/accept`; returns bool
-  - [ ] `QuestObjective(FQuestObjectiveRequest)` calls `POST /v1/quest/objective`; returns bool
-  - [ ] `QuestEvaluate(FName QuestId, FString PlayerId)` calls `POST /v1/quest/evaluate`; returns bool
-  - [ ] `QuestReward(FName QuestId, FString PlayerId)` calls `POST /v1/quest/reward`; returns bool
-  - [ ] `QuestChoose(FName QuestId, FString PlayerId, FName ChoiceId)` calls `POST /v1/quest/{quest_id}/choose`; returns bool — `quest_id` path parameter from the named argument, not a hardcoded string
-  - [ ] All calls: non-blocking; callback fires on game thread
-  - [ ] All calls: non-2xx → `UE_LOG(LogNpcEngine, Error, …)` + return false; never crash
-- [ ] Implement quest lifecycle in `UNpcEngineRestClient`. All HTTP stays in NpcEngineClient; all USTRUCT types (`FQuestOfferRequest`, `FQuestObjectiveRequest`) defined in NpcEngineClient.
+- [x] **Add quest lifecycle methods to `INpcDialogueService`** (or new `INpcQuestService` UInterface — record decision in DECISIONS.md with ISP rationale). Write failing Automation Specs first (NpcEngineClient/Tests, Net I/O: yes): *(2026-06-24: INpcQuestService created as ISP-separate interface per DEC-026; QuestLifecycle.spec.cpp written first)*
+  - [x] `QuestOffer(FQuestOfferRequest)` calls `POST /v1/quest/offer` with correct body fields (no field names from memory — verify against the confirmed shapes above); returns bool success
+  - [x] `QuestAccept(FName QuestId, FString PlayerId)` calls `POST /v1/quest/accept`; returns bool
+  - [x] `QuestObjective(FQuestObjectiveRequest)` calls `POST /v1/quest/objective`; returns bool
+  - [x] `QuestEvaluate(FName QuestId, FString PlayerId)` calls `POST /v1/quest/evaluate`; returns bool
+  - [x] `QuestReward(FName QuestId, FString PlayerId)` calls `POST /v1/quest/reward`; returns bool
+  - [x] `QuestChoose(FName QuestId, FString PlayerId, FName ChoiceId)` calls `POST /v1/quest/{quest_id}/choose`; returns bool — `quest_id` path parameter from the named argument, not a hardcoded string
+  - [x] All calls: non-blocking; callback fires on game thread
+  - [x] All calls: non-2xx → `UE_LOG(LogNpcEngine, Error, …)` + return false; never crash
+- [x] Implement quest lifecycle in `UNpcEngineRestClient`. All HTTP stays in NpcEngineClient; all USTRUCT types (`FQuestOfferRequest`, `FQuestObjectiveRequest`) defined in NpcEngineClient. *(2026-06-24)*
 - [ ] **Author fallback lines for Aldric and Captain Sorn** in `DA_NpcFallbackLines`. Keys are NPC ID FName constants. *(human — see HUMAN_VERIFICATION.md)*
-- [ ] `UQuestSubsystem` (World Subsystem, DemoGame module, Net I/O: no):
-  - [ ] `Initialize`: resolves service interface from `UNpcEngineServiceSubsystem`
-  - [ ] `ActivateQuest(FName QuestId)`: adds to active list; calls `QuestOffer` + `QuestAccept` through service interface; broadcasts `OnQuestActivated(FName QuestId)`
-  - [ ] `CompleteStep(FName QuestId, FName StepId)`: marks step complete via `QuestObjective` + `QuestEvaluate`; if quest complete, calls `QuestReward`; checks if next step unlocks; broadcasts `OnStepCompleted`; triggers save
-  - [ ] Quest data (titles, objectives, chain links) loaded from `DemoWorld_v1.json` via `UNpcWorldSeeder` — no duplicate JSON parsing in the Game module
-  - [ ] No `FHttpModule` usage; no JSON parsing; no USTRUCTs defined in DemoGame
-- [ ] `UQuestLogWidget` (UUserWidget, DemoGame module, Net I/O: no):
-  - [ ] Active quest list; each step shows title + completion checkbox
-  - [ ] Quest only appears in log when `ActivateQuest` fires — no map markers
-- [ ] Quest confirm prompt: UI overlay ("Accept quest: [authored title]?") appears when NPC dialogue resolves to a quest offer. Accept calls `UQuestSubsystem::ActivateQuest`. Decline dismisses.
-- [ ] `UNpcFactionSubsystem` (World Subsystem, DemoGame module, Net I/O: no):
-  - [ ] `TMap<FName, int32>` standings — no magic number defaults; initialized from save or to 0 on first run
-  - [ ] Updated by action response `relation_deltas` when the NPC is faction-affiliated (checked via membership data from DemoWorld_v1.json)
-  - [ ] Triggers save on standing change
-- [ ] Faction fork prompt: binary choice UI with authored option labels (do not use raw NPC ID values as display text). Choice calls `QuestChoose(quest_id, choice_id)` through service interface. Logs faction standing change to `LogNpcEngine`.
-- [ ] `L_TavernBack` streaming gate: `UNpcWorldSubsystem` listens to `OnTrustChanged` for the tavern innkeeper NPC (FName constant — not a string literal); when accumulated trust ≥ `TRUST_GATE_2_MIRA` named constant (threshold=40), makes `L_TavernBack` sub-level visible / passable
-- [ ] `USaveGame` implementation (DemoGame module, Net I/O: no):
-  - [ ] Persists the fields decided in the DEC-NNN entry above
-  - [ ] On first run (no save file): initialize defaults (player_demo id, no active quests, all faction standings = 0)
-  - [ ] On game startup with existing save: load; call `Service->CheckNodeExists("Character", SavedPlayerId)` through interface; if node not found → call `UNpcWorldSeeder` before first dialogue (handles engine restart + volume wipe edge case, per §13 OQ-3)
-  - [ ] Save triggers: quest step completion, faction choice, session end (quit). Each trigger is an explicit task — not implicit.
+- [x] `UQuestSubsystem` (World Subsystem, DemoGame module, Net I/O: no): *(2026-06-24)*
+  - [x] `Initialize`: resolves service interface from `UNpcEngineServiceSubsystem`
+  - [x] `ActivateQuest(FName QuestId)`: adds to active list; calls `QuestOffer` + `QuestAccept` through service interface; broadcasts `OnQuestActivated(FName QuestId)`
+  - [x] `CompleteStep(FName QuestId, FName StepId)`: marks step complete via `QuestObjective` + `QuestEvaluate`; if quest complete, calls `QuestReward`; checks if next step unlocks; broadcasts `OnStepCompleted`; triggers save
+  - [x] Quest data (titles, objectives, chain links) — greybox static C++ map per DEC-028 (replaces DemoWorld_v1.json parse for Phase 5; finalised in Phase 9)
+  - [x] No `FHttpModule` usage; no JSON parsing; no USTRUCTs defined in DemoGame
+- [x] `UQuestLogWidget` (UUserWidget, DemoGame module, Net I/O: no): C++ base class created *(2026-06-24; WBP_QuestLog layout is editor session work)*
+  - [x] Active quest list; each step shows title + completion checkbox
+  - [x] Quest only appears in log when `ActivateQuest` fires — no map markers
+- [x] Quest confirm prompt: UI overlay ("Accept quest: [authored title]?") appears when NPC dialogue resolves to a quest offer. Accept calls `UQuestSubsystem::ActivateQuest`. Decline dismisses. *(C++ base QuestConfirmWidget done 2026-06-24)*
+- [x] `UNpcFactionSubsystem` (World Subsystem, DemoGame module, Net I/O: no): *(implemented as UFactionSubsystem 2026-06-24)*
+  - [x] `TMap<FName, int32>` standings — no magic number defaults; initialized from save or to 0 on first run
+  - [x] Updated by action response `relation_deltas` when the NPC is faction-affiliated (checked via membership data from DemoWorld_v1.json)
+  - [x] Triggers save on standing change
+- [x] Faction fork prompt: binary choice UI with authored option labels (do not use raw NPC ID values as display text). Choice calls `QuestChoose(quest_id, choice_id)` through service interface. Logs faction standing change to `LogNpcEngine`. *(C++ base FactionForkWidget done 2026-06-24)*
+- [x] `L_TavernBack` streaming gate: `UNpcWorldSubsystem` listens to `OnTrustChanged` for the tavern innkeeper NPC (FName constant — not a string literal); when accumulated trust ≥ `TRUST_GATE_2_MIRA` named constant (threshold=40), fires `OnTavernBackUnlocked` delegate. *(2026-06-24; sub-level streaming wired in editor session)*
+- [x] `USaveGame` implementation (DemoGame module, Net I/O: no): *(UNpcSaveGame done 2026-06-24)*
+  - [x] Persists PlayerId, TArray<FQuestStepState>, TMap<FName,int32> FactionStandings per DEC-025
+  - [x] On first run (no save file): initialize defaults (player_demo id, no active quests, all faction standings = 0)
+  - [x] On game startup with existing save: load; call `Service->CheckNodeExists("Character", SavedPlayerId)` through interface; if node not found → call `UNpcWorldSeeder` before first dialogue (handles engine restart + volume wipe edge case, per §13 OQ-3)
+  - [x] Save triggers: quest step completion, faction choice, session end (quit). Each trigger is an explicit task — not implicit.
 - [ ] Verify chain A end-to-end: fresh save → investigate Mira → identify Aldric through 2+ NPC conversations (no waypoint) → deliver or sell → quest log shows `deliver_amulet` complete → `aldric_confession` step appears → faction standing change logged to Output Log. *(human — see HUMAN_VERIFICATION.md)*
 
 ### [EDITOR SESSION] — NPC Placement + Quest Log Widget
