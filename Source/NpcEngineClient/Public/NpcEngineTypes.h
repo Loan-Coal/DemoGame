@@ -1,3 +1,8 @@
+// File: NpcEngineTypes.h
+// Module: NpcEngineClient
+// Purpose: Contract mirror USTRUCTs and UENUMs for all NPC Engine REST boundary types.
+// Net I/O: no
+
 #pragma once
 
 #include "CoreMinimal.h"
@@ -36,82 +41,82 @@ enum class ENpcFacialExpression : uint8
 
 // ── Sub-structs ───────────────────────────────────────────────────────────────
 
-/** Relationship change from a single dialogue turn. Each field is -15..15. */
+/** Relationship change from a single dialogue turn. Each field is -15..15. Mirrors RelationDeltas schema. */
 USTRUCT(BlueprintType)
 struct NPCENGINECLIENT_API FNpcRelationDeltas
 {
     GENERATED_BODY()
 
-    UPROPERTY(BlueprintReadOnly, Category = "NpcEngine")
+    UPROPERTY(BlueprintReadOnly, Category = "NpcEngine", meta=(JsonName="trust"))
     int32 Trust = 0;
 
-    UPROPERTY(BlueprintReadOnly, Category = "NpcEngine")
+    UPROPERTY(BlueprintReadOnly, Category = "NpcEngine", meta=(JsonName="fear"))
     int32 Fear = 0;
 
-    UPROPERTY(BlueprintReadOnly, Category = "NpcEngine")
+    UPROPERTY(BlueprintReadOnly, Category = "NpcEngine", meta=(JsonName="affection"))
     int32 Affection = 0;
 };
 
-/** NPC-initiated action accompanying a dialogue response. */
+/** NPC-initiated action accompanying a dialogue response. Mirrors ActionModel schema. */
 USTRUCT(BlueprintType)
 struct NPCENGINECLIENT_API FNpcActionModel
 {
     GENERATED_BODY()
 
-    UPROPERTY(BlueprintReadOnly, Category = "NpcEngine")
+    UPROPERTY(BlueprintReadOnly, Category = "NpcEngine", meta=(JsonName="type"))
     ENpcActionType Type = ENpcActionType::Speak;
 
-    UPROPERTY(BlueprintReadOnly, Category = "NpcEngine")
+    UPROPERTY(BlueprintReadOnly, Category = "NpcEngine", meta=(JsonName="target_id"))
     FString TargetId;
 
     /** Raw JSON object string — parsed lazily if gameplay needs specific params. */
-    UPROPERTY(BlueprintReadOnly, Category = "NpcEngine")
+    UPROPERTY(BlueprintReadOnly, Category = "NpcEngine", meta=(JsonName="parameters"))
     FString ParametersJson = TEXT("{}");
 };
 
-/** Facial expression hint for animation. Intensity is 0–100. */
+/** Facial expression hint for animation. Intensity is 0–100. Mirrors FacialExpressionModel schema. */
 USTRUCT(BlueprintType)
 struct NPCENGINECLIENT_API FNpcFacialExpression
 {
     GENERATED_BODY()
 
-    UPROPERTY(BlueprintReadOnly, Category = "NpcEngine")
+    UPROPERTY(BlueprintReadOnly, Category = "NpcEngine", meta=(JsonName="type"))
     ENpcFacialExpression Type = ENpcFacialExpression::Neutral;
 
-    UPROPERTY(BlueprintReadOnly, Category = "NpcEngine")
+    UPROPERTY(BlueprintReadOnly, Category = "NpcEngine", meta=(JsonName="intensity"))
     int32 Intensity = 0;
 };
 
 // ── Request structs ──────────────────────────────────────────────────────────
 
-/** Body for POST /v1/dialogue. All three required fields must be non-empty. */
+/** Body for POST /v1/dialogue. All three required fields must be non-empty. Mirrors DialogueRequest schema. */
 USTRUCT(BlueprintType)
 struct NPCENGINECLIENT_API FNpcDialogueRequest
 {
     GENERATED_BODY()
 
     /** Must be an existing Character node. Slice-1 default: "player_demo". */
-    UPROPERTY(BlueprintReadWrite, Category = "NpcEngine")
+    UPROPERTY(BlueprintReadWrite, Category = "NpcEngine", meta=(JsonName="player_id"))
     FString PlayerId;
 
     /** Stable NPC seed id e.g. "mira_innkeeper". */
-    UPROPERTY(BlueprintReadWrite, Category = "NpcEngine")
+    UPROPERTY(BlueprintReadWrite, Category = "NpcEngine", meta=(JsonName="npc_id"))
     FString NpcId;
 
     /** Free-text player input. Must be 1–1000 chars (validated before sending). */
-    UPROPERTY(BlueprintReadWrite, Category = "NpcEngine")
+    UPROPERTY(BlueprintReadWrite, Category = "NpcEngine", meta=(JsonName="player_message"))
     FString PlayerMessage;
 
     /** Optional — pass location id for richer context. */
-    UPROPERTY(BlueprintReadWrite, Category = "NpcEngine")
+    UPROPERTY(BlueprintReadWrite, Category = "NpcEngine", meta=(JsonName="location_id"))
     FString LocationId;
 
     /** Pass back the session_id from the previous response to continue a conversation. */
-    UPROPERTY(BlueprintReadWrite, Category = "NpcEngine")
+    UPROPERTY(BlueprintReadWrite, Category = "NpcEngine", meta=(JsonName="session_id"))
     FString SessionId;
 
     /** Optional — force specific graph node ids into the LLM context window. */
-    UPROPERTY(BlueprintReadWrite, Category = "NpcEngine")
+    UPROPERTY(BlueprintReadWrite, Category = "NpcEngine", meta=(JsonName="explicit_node_ids"))
     TArray<FString> ExplicitNodeIds;
 };
 
@@ -152,6 +157,7 @@ struct NPCENGINECLIENT_API FNpcActionReportRequest
  * Full response from POST /v1/dialogue (raw shape — no OkEnvelope wrapper).
  * Slice-1 displays only NpcResponse. All other fields are modelled now for
  * animation, relationship tracking, and TTS — wired in later slices.
+ * Mirrors DialogueResponse schema.
  */
 USTRUCT(BlueprintType)
 struct NPCENGINECLIENT_API FNpcDialogueResponse
@@ -159,39 +165,39 @@ struct NPCENGINECLIENT_API FNpcDialogueResponse
     GENERATED_BODY()
 
     /** The line to display. This is the only field used in slice-1. */
-    UPROPERTY(BlueprintReadOnly, Category = "NpcEngine")
+    UPROPERTY(BlueprintReadOnly, Category = "NpcEngine", meta=(JsonName="npc_response"))
     FString NpcResponse;
 
-    UPROPERTY(BlueprintReadOnly, Category = "NpcEngine")
+    UPROPERTY(BlueprintReadOnly, Category = "NpcEngine", meta=(JsonName="relation_deltas"))
     FNpcRelationDeltas RelationDeltas;
 
-    UPROPERTY(BlueprintReadOnly, Category = "NpcEngine")
+    UPROPERTY(BlueprintReadOnly, Category = "NpcEngine", meta=(JsonName="mood_update"))
     FString MoodUpdate;
 
-    UPROPERTY(BlueprintReadOnly, Category = "NpcEngine")
+    UPROPERTY(BlueprintReadOnly, Category = "NpcEngine", meta=(JsonName="emotion"))
     FString Emotion;
 
-    UPROPERTY(BlueprintReadOnly, Category = "NpcEngine")
+    UPROPERTY(BlueprintReadOnly, Category = "NpcEngine", meta=(JsonName="action"))
     FNpcActionModel Action;
 
-    UPROPERTY(BlueprintReadOnly, Category = "NpcEngine")
+    UPROPERTY(BlueprintReadOnly, Category = "NpcEngine", meta=(JsonName="facial_expression"))
     FNpcFacialExpression FacialExpression;
 
-    UPROPERTY(BlueprintReadOnly, Category = "NpcEngine")
+    UPROPERTY(BlueprintReadOnly, Category = "NpcEngine", meta=(JsonName="learned_facts"))
     TArray<FString> LearnedFacts;
 
-    UPROPERTY(BlueprintReadOnly, Category = "NpcEngine")
+    UPROPERTY(BlueprintReadOnly, Category = "NpcEngine", meta=(JsonName="memories_recalled"))
     TArray<FString> MemoriesRecalled;
 
     /** Pass back on the next turn to continue this conversation. */
-    UPROPERTY(BlueprintReadOnly, Category = "NpcEngine")
+    UPROPERTY(BlueprintReadOnly, Category = "NpcEngine", meta=(JsonName="session_id"))
     FString SessionId;
 
-    UPROPERTY(BlueprintReadOnly, Category = "NpcEngine")
+    UPROPERTY(BlueprintReadOnly, Category = "NpcEngine", meta=(JsonName="cached"))
     bool bCached = false;
 
     /** "full" = engine healthy; other values = engine self-degraded. */
-    UPROPERTY(BlueprintReadOnly, Category = "NpcEngine")
+    UPROPERTY(BlueprintReadOnly, Category = "NpcEngine", meta=(JsonName="degradation_level"))
     FString DegradationLevel = TEXT("full");
 
     /**
@@ -200,7 +206,7 @@ struct NPCENGINECLIENT_API FNpcDialogueResponse
      * Over WebSocket the done message carries audio_bytes_b64 (base64 WAV).
      * TODO(TTS): Decode to PCM and pass to OnAudioReady when TTS is wired.
      */
-    UPROPERTY(BlueprintReadOnly, Category = "NpcEngine")
+    UPROPERTY(BlueprintReadOnly, Category = "NpcEngine", meta=(JsonName="audio_bytes"))
     TArray<uint8> AudioBytes;
 
     /** True if this response was synthesised client-side due to timeout/error. */

@@ -3,41 +3,617 @@
 Slice-based delivery. Each unchecked box is a discrete, TDD-able unit an `/expand-next`-style flow can
 consume top-to-bottom. Check a box only when its work is merged and `Scripts/check.ps1` is green.
 
+All `NpcEngineClient` tasks follow strict TDD: **write the failing Automation Spec first**, confirm it
+fails for the right reason, implement minimal to pass, refactor green. Gameplay tasks use smoke + manual
++ functional Automation tests.
+
+---
+
 ## Bring-up — before any new game work (do these first)
+
 - [x] **Generate project files + full build** (Rider, or `powershell Scripts/check.ps1 -WithBuild`). First compile of the integrated `NpcEngineClient` module. *(Done 2026-06-23: fixed dynamic-delegate binding in `DialogueWidgetBase` — `AddUObject`/`Remove` → `AddDynamic`/`RemoveDynamic` + `UFUNCTION()` handlers. Both module DLLs build clean.)*
 - [x] **Create `Config/NpcEngine.ini`** from `Config/NpcEngine.ini.template`. *(Done 2026-06-23: default localhost:8000 + dev key; gitignored.)*
 - [x] **Bring up the Docker engine** and prove the middleware end-to-end. *(2026-06-23: verified live through the compiled `UNpcEngineRestClient` — `NpcEngine.Smoke` ran headless: Health OK, Mira reply "Good evening to you as well…", DegradationLevel=full, Cached/Fallback=false, PASS. Also fixed a config bug: GConfig truncated `http://…` at `//`; now reads the ini manually.)*
 - [x] **Register the `NpcEngine.Smoke` console command** + write ≥1 client `*.spec.cpp`. *(2026-06-23: `NpcEngineSmokeCommand.cpp` = GameMode-independent `FAutoConsoleCommandWithWorld`; `NpcEngineJsonUtils.spec.cpp` = 8 specs (parse, enum forward-compat, serialise), all pass headless. Presence + Automation gates now PASS. Fixes ISSUE-001.)*
-- [ ] **Annotate mirror USTRUCTs** with `UPROPERTY(meta=(JsonName="..."))` so contract-sync moves from SKIP to enforcing PASS.
 
-## Slice 1 — Tavern (scaffolding)
-- [ ] Repo + Git LFS configured (.gitattributes for UE binary asset types)
-- [ ] UE5.8 Third Person C++ project skeleton
-- [ ] Plugins enabled: MetaHuman, WebSockets, HTTP, Json
-- [ ] `NpcEngineClient` module: config loader (`Config/NpcEngine.ini` + env, fail-fast on missing)
-- [ ] `NpcEngineClient` module: REST client (`FHttpModule`, async delegates, Bearer auth)
-- [ ] `NpcEngineClient` module: contract USTRUCTs mirroring `docs/openapi.json` (with `JsonName` meta)
-- [ ] `NpcEngineClient` module: both response shapes (raw vs `OkEnvelope`) handled in the JSON layer
-- [ ] `NpcEngineClient` module: UENUMs for closed sets with forward-compat fallback
-- [ ] `NpcEngineClient` module: seeding client (replays `Seed/slice1_tavern.json`)
-- [ ] `NpcEngineClient` module: player-id provider (`player_<8hex>`, self-seed before first dialogue)
-- [ ] `NpcEngineClient` module: WebSocket scaffold (class exists, not yet wired)
-- [ ] `NpcEngineClient` module: fallback contract (timeout/non-2xx → canned line, game continues)
-- [x] Gameplay skeleton: NPC base actor (`FName NpcId`)
-- [x] Gameplay skeleton: interaction wired (player → nearest NPC → dialogue subsystem). *(2026-06-23: driver on `ADemoGameCharacter` — interact finds nearest `ANpcActorBase`, opens dialogue, spawns widget; E-key fallback before `IA_Interact` exists. See DEC-012.)*
-- [x] Gameplay skeleton: dialogue subsystem (composition root in `Initialize`). *(Note: depends on concrete `UNpcEngineRestClient`, not yet the `INpcDialogueService` interface — see ISSUE-002.)*
-- [x] Gameplay skeleton: C++ UMG base widget (rejects empty / oversized input; display events have C++ defaults so a minimal WBP works).
-- [x] Smoke tests: curl health + dialogue round-trip; in-editor `NpcEngine.Smoke` exec command
-- [x] Automation specs for the client module (`NpcEngineJsonUtils.spec.cpp` — parse/enum/serialise; mock-transport fallback specs still to come)
-- [ ] `STORYBOARD.md` (Slice-1 narrative beats)
+---
 
-## Slice 2 — Village
-- [ ] Market-square + guard-barracks NPCs: `aldric_merchant`, `captain_sorn`, `old_henryk`
-- [ ] Location streaming (`loc_market_square`, `loc_guard_barracks`)
-- [ ] Expand seed data for Slice-2 locations and NPCs
+## Phase 0 — Engine Smoke Test
 
-## Slice 3+ — Outward
-- [ ] Open-world expansion
-- [ ] WebSocket streaming wired end-to-end
-- [ ] MetaHuman hero wiring (1–2 per scene)
-- [ ] TTS playback (`OnAudioReady` → audio) — see DEC-010
+**Goal:** Verify the NPC Engine is reachable and seed data is correct before writing any Unreal code.
+**Independently demoable:** PowerShell output showing `/health` 200 and a non-empty `npc_response`.
+**Prerequisites:** None. NPC Engine docker-compose running; `NPC_ENGINE_API_KEY` set in environment.
+**Quality gate:** `pwsh Scripts/check.ps1`
+
+- [x] Run `make demo-seed` in the NPC Engine repo (or verify that `player_demo` and `mira_innkeeper` Character nodes exist via `GET /v1/graph/nodes/Character/player_demo`)
+- [x] PowerShell smoke test:
+  ```powershell
+  $h = @{ Authorization = "Bearer $env:NPC_ENGINE_API_KEY" }
+  Invoke-RestMethod http://localhost:8000/health
+  Invoke-RestMethod -Method Post http://localhost:8000/v1/dialogue `
+    -Headers $h -ContentType application/json `
+    -Body (@{ player_id="player_demo"; npc_id="mira_innkeeper"; player_message="Good evening." } | ConvertTo-Json)
+  ```
+- [x] Confirm `npc_response` is a non-empty string. Record it as the session's smoke-test baseline.
+- [x] Store `NPC_ENGINE_URL` (default `http://localhost:8000`) and `NPC_ENGINE_API_KEY` in gitignored `Config/NpcEngine.ini` or environment variables. Never commit either value.
+
+---
+
+## Phase 1 — NpcEngineClient (TDD)
+
+**Goal:** The sole C++ network layer for all engine communication; gameplay receives typed USTRUCTs, never raw JSON.
+**Independently demoable:** All Automation Specs green; `npc_response` appears in Unreal Output Log via `NpcEngine.Smoke` exec command.
+**Prerequisites:** Phase 0.
+**Quality gate:** `pwsh Scripts/check.ps1 -WithBuild -WithTests`
+
+- [x] Create module `Source/NpcEngineClient/` with `NpcEngineClient.h`, `NpcEngineClient.cpp`, `NpcEngineClient.Build.cs`
+- [x] File header on every `.h`/`.cpp`: `// File / Module: NpcEngineClient / Purpose / Net I/O: yes`
+- [x] Write failing Automation Specs first (`NpcEngineClientSpec.cpp`):
+  - [x] `GetHealth()` parses `OkEnvelope` → `FHealthResponse { status, version }`
+  - [x] `PostDialogue(FDialogueRequest)` parses raw `DialogueResponse` → populated `FDialogueResponse`
+  - [x] `PostDialogue` with empty `player_message` → `ERequestError::InvalidInput` (no HTTP call made)
+  - [x] `PostDialogue` with `player_message` > 1000 chars → `ERequestError::InvalidInput` (no HTTP call made)
+  - [x] `PostDialogue` on non-2xx → `ERequestError::NetworkError`; `npc_response` set to authored fallback text
+  - [x] `PostClockAdvance(int32 Delta)` calls `/clock/advance` with `{ "delta_ticks": Delta }`, returns bool success
+  - [x] `PostAction(FActionReportRequest)` calls `/v1/action`, returns raw status string
+  - [x] `UpsertNode`, `UpsertEdge`, `CheckNodeExists` — each with a passing Automation Spec
+- [x] Implement `UNpcEngineRestClient` to pass all specs:
+  - [x] Read `NPC_ENGINE_URL` and `NPC_ENGINE_API_KEY` from `Config/NpcEngine.ini` or env; `UE_LOG(LogNpcEngine, Fatal, …)` if either is missing — fail fast
+  - [x] All HTTP via `FHttpModule`; all callbacks fire on the game thread. Non-blocking: return immediately; callback fires on game thread.
+  - [x] Response shape branch: raw body for `/v1/dialogue` and `/v1/action`; `OkEnvelope` (`.data`) for all others
+  - [x] `FDialogueResponse` USTRUCT: all fields from `docs/openapi.json` (`npc_response`, `relation_deltas`, `mood_update`, `emotion`, `action`, `facial_expression`, `learned_facts`, `memories_recalled`, `session_id`, `cached`, `degradation_level`, `audio_bytes` stub)
+  - [x] `EFacialExpressionType` UENUM: `Neutral, Happy, Wary, Fearful, Angry, Sad`. Unknown string → `UE_LOG(LogNpcEngine, Warning, …)` + return `Neutral`. Never crash on forward-compat values.
+  - [x] `EActionType` UENUM: `Speak` as default. Unknown string → coerce to `Speak` + log.
+  - [x] Dialogue timeout: 30 s; Health timeout: 3 s. Both configurable via `Config/NpcEngine.ini`.
+  - [x] Fallback lines: `TMap<FName, FText>` in `DA_NpcFallbackLines` DataAsset (prefix `DA_`). Used on timeout or non-2xx. Data structure only — authored content added per phase as each NPC becomes interactable.
+- [x] `INpcDialogueService` UInterface (`MinimalAPI, NotBlueprintable`) in NpcEngineClient: pure-virtual `SendDialogue`, `SendActionReport`, `GetNpcState`
+- [x] `UNpcEngineServiceSubsystem` (UGameInstanceSubsystem): composition root; owns one `UNpcEngineRestClient`; exposes `TScriptInterface<INpcDialogueService>`; `SetDialogueService()` for test injection
+- [x] Scaffold `FNpcEngineWebSocketClient`: `OnDialogueChunk(FString)` / `OnDialogueComplete(FDialogueResponse)` delegates; parse `token / done / error / proactive_line` message types; mark all `// TODO(SLICE-2-WS)`; do not wire to gameplay
+- [x] Exec command `NpcEngine.Smoke`: calls `GetHealth()` and one `PostDialogue` for the tavern innkeeper NPC (NPC ID via named constant, not string literal); logs `npc_response` to `LogNpcEngine`
+- [x] Gameplay skeleton (DemoGame module, Net I/O: no on all files):
+  - [x] `ANpcActorBase`: `FName NpcId` UPROPERTY; `USphereComponent` proximity trigger; interact prompt
+  - [x] Interaction driver on `ADemoGameCharacter`: finds nearest `ANpcActorBase` on E-key / `IA_Interact`; calls `BeginDialogue`; spawns and shows `WBP_Dialogue`; restores input on end. Legacy E-key fallback works before `IA_Interact` is authored.
+  - [x] `UDialogueManagerSubsystem` (UGameInstanceSubsystem): resolves `TScriptInterface<INpcDialogueService>` lazily from `UNpcEngineServiceSubsystem`; exposes `SetDialogueService()` for test injection; routes `SubmitMessage` calls through the interface
+  - [x] C++ UMG base widget: rejects empty / oversized input; `BlueprintNativeEvent` display handlers with C++ defaults so a minimal `WBP_Dialogue` shows dialogue without Blueprint scripting
+- [x] DIP complete (DEC-013): 4 `UDialogueManager` Automation Specs using synchronous fake `INpcDialogueService`; `rg UNpcEngineRestClient Source/DemoGame` = 0 references
+- [x] All Automation Specs green. No file exceeds 500-line ceiling.
+- [x] `docs/STORYBOARD.md` authored (Slice-1 narrative beats)
+- [x] Annotate all mirror USTRUCTs in `NpcEngineClient` with `UPROPERTY(meta=(JsonName="..."))` matching `docs/openapi.json` field names. Moves `Scripts/check_contract_sync.py` from SKIP to enforcing PASS.
+
+---
+
+## Phase 2 — World Skeleton + Tick
+
+**Goal:** Three navigable locations in box geometry; location arrival fires a world clock tick.
+**Independently demoable:** Player walks between three rooms; Output Log shows tick number incrementing on each arrival; re-entering the same location shows no tick.
+**Prerequisites:** Phase 1 (INpcDialogueService interface stable; UNpcEngineRestClient implements PostClockAdvance).
+**Quality gate:** `pwsh Scripts/check.ps1 -WithBuild`
+
+- [ ] **Verify `/clock/advance` endpoint** — not in `docs/openapi.json` (curated subset). Shape resolved per §13 OQ-2: `POST /clock/advance` body `{ "delta_ticks": 1 }`, optional `game_time_seconds` and `advance_time_field` not required. Confirm shape still matches live `GET http://localhost:8000/openapi.json`. Record as **DEC-014** in `DECISIONS.md` before implementing.
+- [ ] **Add `AdvanceClock(int32 DeltaTicks)` to `INpcDialogueService`** in NpcEngineClient (extending the interface; record in DECISIONS.md alongside ISP note — if future ISP pressure warrants splitting, create `INpcWorldService` separately). Write failing Automation Spec first:
+  - [ ] Spec: `AdvanceClock(1)` calls `POST /clock/advance` with body `{ "delta_ticks": 1 }` — verified via mock transport (Net I/O: yes; NpcEngineClient module only)
+  - [ ] Spec: `AdvanceClock` on non-2xx → returns `false`; logs `UE_LOG(LogNpcEngine, Error, "ClockAdvance failed Status=%d", ...)`. Non-blocking: return immediately; callback fires on game thread.
+  - [ ] Implement `AdvanceClock` in `UNpcEngineRestClient`: `OkEnvelope` response shape (all clock endpoints use the envelope); parse `.data`; return bool
+- [ ] `ANpcLocation` Actor (DemoGame module, Net I/O: no):
+  - [ ] `UPROPERTY` `FName LocationId` — must be set per-actor in the editor; default `NAME_None` is invalid
+  - [ ] `UPROPERTY` `bool bFiresTick` — default `true`; set `false` for the tavern back room actor
+  - [ ] `USphereComponent` arrival trigger volume sized to cover the walkable area
+- [ ] `UNpcWorldSubsystem` (World Subsystem, DemoGame module, Net I/O: no):
+  - [ ] `Initialize`: resolves `TScriptInterface<INpcDialogueService>` from `UNpcEngineServiceSubsystem`; stores it as member
+  - [ ] `OnPlayerArrived(FName LocationId)`: if `LocationId != CurrentLocationId` AND actor's `bFiresTick` is true → call `Service->AdvanceClock(1)` through interface → increment `TickCount` → `UE_LOG(LogNpcEngine, Log, "Tick=%d Location=%s", TickCount, *LocationId.ToString())` → broadcast `FOnTickAdvanced`
+  - [ ] Re-entry guard: `CurrentLocationId == LocationId` → skip; no tick, no log noise
+  - [ ] `GetCurrentLocationId()` accessor (const)
+  - [ ] No `FHttpModule` usage — all network I/O routed through `INpcDialogueService`
+- [ ] Player character registers `OnComponentBeginOverlap` with each `ANpcLocation` trigger volume → calls `UNpcWorldSubsystem::OnPlayerArrived(LocationId)`
+- [ ] `UArrivalSubtitleWidget` (UUserWidget, DemoGame module, Net I/O: no):
+  - [ ] Binds to `UNpcWorldSubsystem::FOnTickAdvanced` on construct
+  - [ ] Shows authored `FText` subtitle for 3 seconds, then fades via `UWidgetAnimation`
+  - [ ] Authored per-location text stored in a `TMap<FName, FText>` DataAsset (prefix `DA_`), not hardcoded in C++
+
+### [EDITOR SESSION] — Level Creation + Travel Triggers
+
+**What to do in Unreal Editor / Rider:**
+1. Create four levels using box BSP geometry:
+   - `L_Tavern` — main tavern floor; box room with doorway to `L_TavernBack`
+   - `L_TavernBack` — created as a persistent sub-level of `L_Tavern`; hidden by default
+   - `L_MarketSquare` — open courtyard box
+   - `L_GuardBarracks` — barracks courtyard box
+2. Place one `ANpcLocation` actor per level with `LocationId` set to the matching constant:
+   - `L_Tavern`: `loc_tavern`, `bFiresTick = true`
+   - `L_TavernBack`: `loc_tavern_back`, `bFiresTick = false`
+   - `L_MarketSquare`: `loc_market_square`, `bFiresTick = true`
+   - `L_GuardBarracks`: `loc_guard_barracks`, `bFiresTick = true`
+3. Place travel trigger volumes (box volumes or door BSP actors) linking `L_Tavern` ↔ `L_MarketSquare` ↔ `L_GuardBarracks`. Choose level streaming or direct level load — record the choice in DECISIONS.md; do not change it later.
+4. Add `UArrivalSubtitleWidget` to the player HUD; wire the `FOnTickAdvanced` delegate.
+
+**Checklist (manual):**
+- [ ] All three named levels plus `L_TavernBack` load in PIE
+- [ ] `L_TavernBack` sub-level is hidden by default in `L_Tavern`
+- [ ] Travel triggers connect all three main levels
+- [ ] All `ANpcLocation` actors placed with correct `LocationId` UPROPERTY values
+
+**Done when:** PIE — walk Tavern → Market → Barracks → Market → Tavern; Output Log shows 4 ticks at the correct `LogNpcEngine` category; re-entering the same location shows no additional tick; entering `L_TavernBack` shows no tick.
+
+---
+
+## Phase 3 — Seeder + Seed Data
+
+**Goal:** DemoGame owns all world seeding; running the seeder against a fresh engine builds the complete demo world idempotently.
+**Independently demoable:** Seeder runs to completion with 0 errors; second consecutive run logs 0 new nodes created (all skipped by idempotency check).
+**Prerequisites:** Phase 2 (INpcDialogueService interface stable; world subsystem in place).
+**Quality gate:** `pwsh Scripts/check.ps1 -WithBuild -WithTests`
+
+- [ ] **Reconcile tavern name conflict** — `docs/STORYBOARD.md` calls the tavern "The Rusty Flagon"; `docs/game_design_roadmap.md` §7.1 calls it "The Broken Flagon". Choose one canonical name. Record decision as **DEC-NNN** in `DECISIONS.md`. Propagate the chosen name to `Content/Seed/DemoWorld_v1.json` and `docs/STORYBOARD.md`. All authored text uses "Thornfield" as the town name (confirmed in §13 OQ-5).
+- [ ] Write failing Automation Specs for `UNpcWorldSeeder` (NpcEngineClient/Tests, Net I/O: yes):
+  - [ ] Seeder calls `CheckNodeExists` before each `UpsertNode`; skips the upsert when node exists (idempotency)
+  - [ ] Seeder processes Location nodes before Character nodes; Faction nodes before edge upserts (dependency order enforced)
+  - [ ] Seeder halts and logs `UE_LOG(LogNpcEngine, Error, "Seeder halted NodeId=%s Status=%d", …)` on any non-2xx response; does not silently continue
+  - [ ] All upserts are non-blocking: return immediately; callbacks fire on game thread
+- [ ] Author `Content/Seed/DemoWorld_v1.json` — single source of truth for all demo content:
+  - [ ] **Location nodes** (node_type `Location`): `loc_tavern` (The [chosen name]), `loc_tavern_back` (Back Room), `loc_market_square` (Market Square), `loc_guard_barracks` (Guard Barracks). Display text uses "Thornfield" as town name.
+  - [ ] **Character nodes** — all 5 NPCs with exact personality values from §7.3:
+    - `mira_innkeeper`: gossipy=82, credulity=60, honesty=55; `is_player=false`, `is_active=true`
+    - `lira_fence`: gossipy=40, credulity=30, honesty=20
+    - `aldric_merchant`: gossipy=50, credulity=50, honesty=70; biography: *"Formerly traded textiles in Riverwheel before settling in Thornfield as a wine merchant."*
+    - `captain_sorn`: gossipy=25, credulity=20, honesty=85
+    - `old_henryk`: gossipy=90, credulity=95, honesty=40
+  - [ ] **Player node**: id=`player_demo`, name=`"Traveler"`, is_player=true, currency_balance=60, archetype=`"adventurer"`; property shape per `docs/ENGINE_CONTRACT.md` §5
+  - [ ] **Faction nodes**: Guard faction, Thieves' Guild faction
+  - [ ] **Event node**: `northern_war_begins` with authored distortion text per hop (§7.2 verbatim):
+    - Source text (Sorn firsthand): *"Border soldiers are deserting their posts. A skirmish at the northern pass has been suppressed from official reports."*
+    - Hop 1 text (Mira rumor): *"There's fighting up north. Someone said half the garrison moved out last week."*
+    - Hop 2 text (Henryk distorted): *"I heard the whole northern army's fled to the hills. War's already started, they say."*
+  - [ ] **Edges** (all after dependent nodes are seeded):
+    - `LOCATED_AT`: each NPC → their home location
+    - `MEMBER_OF`: `lira_fence` → Thieves' Guild; `captain_sorn` → Guard
+    - `KNOWS_ABOUT`: `captain_sorn` → `northern_war_begins` (the propagating event source)
+    - `RELATES_TO`: initial neutral stubs between NPCs who would know each other
+  - [ ] **Quest nodes**: `find_wine_merchant`, `deliver_amulet`, `aldric_confession`, `patrol_duty`, `captain_report`, `missing_goods`, `fence_confrontation` — each with objective text and chain links per §7.6
+  - [ ] **Memory badge lookup stub**: `TMap<FName, FText>` entries for all memory node IDs in the seed. Placeholder display text is acceptable here; full authored text delivered in Phase 10.
+  - [ ] Note: Slice 2 NPC deep inner-life content (beliefs, secrets, goals beyond basic biography) is expanded in Phases 5–6 via admin endpoints. Add task: verify whether `POST /v1/admin/memories/{character_id}` (and belief/secret endpoints) are needed for `aldric_confession` seeding and record seeding path in DECISIONS.md.
+- [ ] Implement `UNpcWorldSeeder` in NpcEngineClient module (Net I/O: yes):
+  - [ ] Reads `DemoWorld_v1.json` using `FFileHelper`; JSON parsing stays in NpcEngineClient (never in DemoGame)
+  - [ ] For each node: `CheckNodeExists` → if found log `"Skipped: {id}"` and skip; else `UpsertNode` (`POST /v1/graph/nodes/{node_type}` with `{ "properties": {...} }`)
+  - [ ] For each edge: `UpsertEdge` (`POST /v1/graph/edges/{edge_type}` with `{ "src_id", "dst_id", "properties" }`) — MERGE semantics; both endpoint nodes must already be seeded
+  - [ ] Seed order enforced: Locations → Factions → Characters → Edges → Quest nodes
+  - [ ] On any non-2xx: `UE_LOG(LogNpcEngine, Error, …)` and halt; never silently continue
+  - [ ] Non-blocking: each upsert is async; callbacks fire on game thread
+- [ ] Exec command `NpcEngine.SeedWorld` (FAutoConsoleCommandWithWorld in NpcEngineClient) triggers seeder from the in-game console; does not require a live `APlayerController`
+- [ ] Verify: run seeder twice against a live engine. Second run logs 0 new nodes created (all skipped by idempotency check).
+- [ ] Reconcile `DemoWorld_v1.json` with `docs/ENGINE_CONTRACT.md`. Any property shape drift → patch the seed before proceeding.
+
+---
+
+## Phase 4 — Dialogue + Trust Gate (Greybox)
+
+**Goal:** One complete investigation step playable — approach Mira, build trust, cross trust gate 1, learn Aldric's situation.
+**Independently demoable:** Approach a capsule, press E, type a message, receive a response, watch the trust meter move.
+**Prerequisites:** Phase 3 (world seeded; DemoWorld_v1.json stable; all 5 NPC nodes exist in engine).
+**Quality gate:** `pwsh Scripts/check.ps1 -WithBuild -WithTests`
+
+- [ ] **Author fallback lines for Mira and Lira** in `DA_NpcFallbackLines` DataAsset (`TMap<FName, FText>`). Keys are the NPC ID FName constants — no hardcoded string literals in C++. Example text: Mira: *"…Mira seems distracted and doesn't respond."*; Lira: *"…Lira shrugs and looks away."* These appear on 30 s timeout or non-2xx from the engine.
+- [ ] Write failing functional Automation Spec for `UDialogueComponent` (DemoGame/Tests):
+  - [ ] `SubmitMessage("")` → rejected client-side (no delegate fired, no HTTP call); uses `DIALOGUE_MAX_CHARS` named constant from NpcEngineClient
+  - [ ] `SubmitMessage` with string over `DIALOGUE_MAX_CHARS` → rejected client-side
+  - [ ] `SubmitMessage` on valid input with fake `INpcDialogueService` returning non-2xx → `OnFallbackLine` fired; fallback text from `DA_NpcFallbackLines`; mock returns fallback (not success) — LSP rule enforced
+- [ ] `UDialogueComponent` on `ANpcActorBase` (DemoGame module, Net I/O: no):
+  - [ ] `StartDialogue(APlayerController*)`: begins session; clears history; disables player movement input
+  - [ ] `SubmitMessage(FString PlayerMessage)`: validates non-empty AND `PlayerMessage.Len() <= DIALOGUE_MAX_CHARS`; calls `Service->SendDialogue(FDialogueRequest{...})` through `TScriptInterface<INpcDialogueService>`; locks text input widget during wait. No `FHttpModule` usage — all routed through interface.
+  - [ ] On response (`FDialogueResponse` received): cache `SessionId`; update local trust accumulator; broadcast `OnTrustChanged(FName NpcId, FRelationDeltas Deltas)`; broadcast `OnMemoriesRecalled(TArray<FString>)` if `MemoriesRecalled` is non-empty; fire `OnFacialExpression(EFacialExpressionType, int32 Intensity)`
+  - [ ] On timeout / non-2xx: fire `OnFallbackLine(FName NpcId, FText FallbackText)` — text from `DA_NpcFallbackLines`; game continues; never crash; never hang
+  - [ ] `DegradationLevel != "full"`: log `UE_LOG(LogNpcEngine, Log, "Degradation=%s", …)` and continue; do not surface to player in demo v1
+- [ ] `UDialogueWidget` (UUserWidget C++ base class, DemoGame module, Net I/O: no):
+  - [ ] Text input field: `IsReadOnly = true` during LLM wait; restored to `false` on response or fallback
+  - [ ] Dialogue history panel: last 4 exchanges, scrollable; word-by-word text reveal at 20 ms/word over full string (cosmetic UWidgetAnimation — full string available immediately on receipt)
+  - [ ] Thinking state: `...` ellipsis pulsing via UWidgetAnimation during wait
+  - [ ] `memories_recalled` badge: appears at top of panel for 5 s on `OnMemoriesRecalled` when array is non-empty; text from `DA_MemoryBadgeLookup` DataAsset (memory node ID FName → authored `FText`); badge hidden when array is empty — never show an empty badge
+  - [ ] No art — white panels, legible fonts at this stage
+- [ ] `URelationshipMeterWidget` (debug HUD overlay, DemoGame module, Net I/O: no): shows `trust`, `fear`, `affection` as signed integers per active NPC; animates (simple lerp) on `OnTrustChanged`
+- [ ] Trust gate verification: accumulate trust with Mira past 25 via natural dialogue; confirm she reveals the Aldric information in dialogue history (do not check engine internals directly). Repeat 3 times from a fresh seed. Gate must clear in all 3 runs.
+
+### [EDITOR SESSION] — NPC Capsule Placement + Widget Layout
+
+**What to do in Unreal Editor / Rider:**
+1. Place Mira `ANpcActorBase` capsule in `L_Tavern`. Set `NpcId` UPROPERTY to the `mira_innkeeper` FName constant. Set `LocationId` to `loc_tavern`.
+2. Place Lira `ANpcActorBase` capsule in `L_TavernBack`. Set `NpcId` to `lira_fence`. Set `LocationId` to `loc_tavern_back`. Keep `L_TavernBack` hidden by default; it streams in only after Mira gate 2 fires (wired in Phase 5).
+3. Create `WBP_Dialogue` (child of `UDialogueWidget` C++ base): lay out text input, history panel, thinking indicator, memories badge. Wire `BindWidget` slots only — no Blueprint logic.
+4. Create `WBP_RelationshipMeter` (child of `URelationshipMeterWidget` C++ base): lay out trust/fear/affection labels. Wire `BindWidget` slots.
+5. Add `WBP_Dialogue` and `WBP_RelationshipMeter` to the player HUD.
+
+**Checklist (manual):**
+- [ ] PIE: approach Mira capsule, press E → `WBP_Dialogue` opens
+- [ ] PIE: type message → input locks; response arrives → input unlocks
+- [ ] PIE: `WBP_RelationshipMeter` shows values and animates after exchange
+- [ ] PIE: `memories_recalled` badge appears if `MemoriesRecalled` array is non-empty
+- [ ] PIE: empty input rejected client-side (Output Log shows no HTTP call made)
+
+**Done when:** `pwsh Scripts/check.ps1 -WithBuild -WithTests` green; PIE — approach Mira → press E → receive response → trust meter moves.
+
+> §14 acceptance criteria addressed: "Player initiates dialogue with Mira. Types a message. Receives a response within 30 seconds or a graceful fallback line." · "Trust meter updates visibly after each exchange." · "The `memories_recalled` badge appears at least once during the golden path."
+
+---
+
+## Phase 5 — Quest System + Faction Fork (Greybox)
+
+**Goal:** Full chain A playable — investigate → identify Aldric → deliver or sell → quest log shows complete.
+**Independently demoable:** Quest log updates as steps complete; faction choice fires and changes a visible standing value.
+**Prerequisites:** Phase 4 (Mira trust gate functional; INpcDialogueService interface stable).
+**Quality gate:** `pwsh Scripts/check.ps1 -WithBuild -WithTests`
+
+- [ ] **Add DEC-NNN to `DECISIONS.md` first:** Document what `USaveGame` persists (`player_id`, active quest step list (`TArray<FQuestStepState>` with quest_id + step_id + completion bool), faction standings (`TMap<FName, int32>`)). Document save triggers: quest step completion, faction choice, session end (application quit). Resolve in DECISIONS.md before writing any save code.
+- [ ] **Verify quest lifecycle endpoint shapes** against live `GET http://localhost:8000/openapi.json` (not in curated `docs/openapi.json`; resolved per §13 OQ-1 — confirm still match):
+  - `POST /v1/quest/offer` body: `{ "quest_id", "player_id", "title", "objectives": [{"objective_id","description","required_progress":1}], "item_rewards":[], "currency_reward":null }`
+  - `POST /v1/quest/accept` body: `{ "quest_id", "player_id" }`
+  - `POST /v1/quest/objective` body: `{ "quest_id", "player_id", "objective_id", "progress_delta":1 }`
+  - `POST /v1/quest/evaluate` body: `{ "quest_id", "player_id" }`
+  - `POST /v1/quest/reward` body: `{ "quest_id", "player_id" }`
+  - `POST /v1/quest/{quest_id}/choose` body: `{ "player_id", "choice_id" }` — faction fork branch
+  - Record confirmation result in DECISIONS.md.
+- [ ] **Add quest lifecycle methods to `INpcDialogueService`** (or new `INpcQuestService` UInterface — record decision in DECISIONS.md with ISP rationale). Write failing Automation Specs first (NpcEngineClient/Tests, Net I/O: yes):
+  - [ ] `QuestOffer(FQuestOfferRequest)` calls `POST /v1/quest/offer` with correct body fields (no field names from memory — verify against the confirmed shapes above); returns bool success
+  - [ ] `QuestAccept(FName QuestId, FString PlayerId)` calls `POST /v1/quest/accept`; returns bool
+  - [ ] `QuestObjective(FQuestObjectiveRequest)` calls `POST /v1/quest/objective`; returns bool
+  - [ ] `QuestEvaluate(FName QuestId, FString PlayerId)` calls `POST /v1/quest/evaluate`; returns bool
+  - [ ] `QuestReward(FName QuestId, FString PlayerId)` calls `POST /v1/quest/reward`; returns bool
+  - [ ] `QuestChoose(FName QuestId, FString PlayerId, FName ChoiceId)` calls `POST /v1/quest/{quest_id}/choose`; returns bool — `quest_id` path parameter from the named argument, not a hardcoded string
+  - [ ] All calls: non-blocking; callback fires on game thread
+  - [ ] All calls: non-2xx → `UE_LOG(LogNpcEngine, Error, …)` + return false; never crash
+- [ ] Implement quest lifecycle in `UNpcEngineRestClient`. All HTTP stays in NpcEngineClient; all USTRUCT types (`FQuestOfferRequest`, `FQuestObjectiveRequest`) defined in NpcEngineClient.
+- [ ] **Author fallback lines for Aldric and Captain Sorn** in `DA_NpcFallbackLines`. Keys are NPC ID FName constants.
+- [ ] `UQuestSubsystem` (World Subsystem, DemoGame module, Net I/O: no):
+  - [ ] `Initialize`: resolves service interface from `UNpcEngineServiceSubsystem`
+  - [ ] `ActivateQuest(FName QuestId)`: adds to active list; calls `QuestOffer` + `QuestAccept` through service interface; broadcasts `OnQuestActivated(FName QuestId)`
+  - [ ] `CompleteStep(FName QuestId, FName StepId)`: marks step complete via `QuestObjective` + `QuestEvaluate`; if quest complete, calls `QuestReward`; checks if next step unlocks; broadcasts `OnStepCompleted`; triggers save
+  - [ ] Quest data (titles, objectives, chain links) loaded from `DemoWorld_v1.json` via `UNpcWorldSeeder` — no duplicate JSON parsing in the Game module
+  - [ ] No `FHttpModule` usage; no JSON parsing; no USTRUCTs defined in DemoGame
+- [ ] `UQuestLogWidget` (UUserWidget, DemoGame module, Net I/O: no):
+  - [ ] Active quest list; each step shows title + completion checkbox
+  - [ ] Quest only appears in log when `ActivateQuest` fires — no map markers
+- [ ] Quest confirm prompt: UI overlay ("Accept quest: [authored title]?") appears when NPC dialogue resolves to a quest offer. Accept calls `UQuestSubsystem::ActivateQuest`. Decline dismisses.
+- [ ] `UNpcFactionSubsystem` (World Subsystem, DemoGame module, Net I/O: no):
+  - [ ] `TMap<FName, int32>` standings — no magic number defaults; initialized from save or to 0 on first run
+  - [ ] Updated by action response `relation_deltas` when the NPC is faction-affiliated (checked via membership data from DemoWorld_v1.json)
+  - [ ] Triggers save on standing change
+- [ ] Faction fork prompt: binary choice UI with authored option labels (do not use raw NPC ID values as display text). Choice calls `QuestChoose(quest_id, choice_id)` through service interface. Logs faction standing change to `LogNpcEngine`.
+- [ ] `L_TavernBack` streaming gate: `UNpcWorldSubsystem` listens to `OnTrustChanged` for the tavern innkeeper NPC (FName constant — not a string literal); when accumulated trust ≥ `TRUST_GATE_2_MIRA` named constant (threshold=40), makes `L_TavernBack` sub-level visible / passable
+- [ ] `USaveGame` implementation (DemoGame module, Net I/O: no):
+  - [ ] Persists the fields decided in the DEC-NNN entry above
+  - [ ] On first run (no save file): initialize defaults (player_demo id, no active quests, all faction standings = 0)
+  - [ ] On game startup with existing save: load; call `Service->CheckNodeExists("Character", SavedPlayerId)` through interface; if node not found → call `UNpcWorldSeeder` before first dialogue (handles engine restart + volume wipe edge case, per §13 OQ-3)
+  - [ ] Save triggers: quest step completion, faction choice, session end (quit). Each trigger is an explicit task — not implicit.
+- [ ] Verify chain A end-to-end: fresh save → investigate Mira → identify Aldric through 2+ NPC conversations (no waypoint) → deliver or sell → quest log shows `deliver_amulet` complete → `aldric_confession` step appears → faction standing change logged to Output Log.
+
+### [EDITOR SESSION] — NPC Placement + Quest Log Widget
+
+**What to do in Unreal Editor / Rider:**
+1. Place `ANpcActorBase` capsules for the three Slice-2 NPCs: Aldric in `L_MarketSquare` (`NpcId` = aldric_merchant constant); Sorn in `L_GuardBarracks` (`NpcId` = captain_sorn constant); Old Henryk in `L_MarketSquare` (`NpcId` = old_henryk constant).
+2. Create `WBP_QuestLog` (child of `UQuestLogWidget` C++ base): lay out active quests and step checkboxes. Wire `BindWidget` slots — no Blueprint logic.
+3. Create `WBP_FactionFork` (binary choice prompt). Wire to `UNpcFactionSubsystem` and `UQuestSubsystem`.
+4. Add `WBP_QuestLog` to the player HUD.
+5. Test `L_TavernBack` streaming gate: build trust with Mira past gate 2 threshold in PIE; confirm back room becomes visible and passable.
+
+**Checklist (manual):**
+- [ ] PIE: approach Aldric, Sorn, Old Henryk capsules — all respond to E-interact
+- [ ] PIE: quest log shows `find_wine_merchant` as first active step after investigation starts
+- [ ] PIE: chain A fork fires; `deliver_amulet` completes; faction standing change is logged
+
+**Done when:** Chain A playable end-to-end from a fresh save; quest log updates at each step; faction standing change logged to Output Log after fork.
+
+> §14 acceptance criteria addressed: "Quest log shows `find_wine_merchant` as the first active step." · "Chain A completes: quest log shows `deliver_amulet` complete, `aldric_confession` step appears." · "Faction fork fires. Faction standing changes." · "Lira's back room is inaccessible below gate 2 and accessible above it." · "Player identifies Aldric through 2+ NPC conversations. No map marker."
+
+---
+
+## Phase 6 — Gossip Chain + Rumor Journal (Greybox)
+
+**Goal:** Distorted rumor arrives at Old Henryk; Rumor Journal shows the full chain; Sorn's quest chain unlocks.
+**Independently demoable:** Tab opens the journal showing a Sorn → Mira → Henryk chain entry after completing the golden path through beat 15.
+**Prerequisites:** Phase 5 (all 5 NPC capsules placed; trust, quest, and faction systems functional; full golden path setup complete).
+**Quality gate:** `pwsh Scripts/check.ps1 -WithBuild -WithTests`
+
+- [ ] **Author fallback line for Old Henryk** in `DA_NpcFallbackLines`. All 5 NPC fallback lines are now authored (Mira + Lira in Phase 4; Aldric + Sorn in Phase 5; Old Henryk here).
+- [ ] `FNpcStateSnapshot` USTRUCT (NpcEngineClient module, Net I/O: no for the struct itself):
+  - [ ] Mirrors `GET /v1/npc/{npc_id}/state` response `data` field shape: `character` object, `relations` array, `events` array — all fields `UPROPERTY`
+  - [ ] Write failing Automation Spec first (NpcEngineClient/Tests):
+    - [ ] Parses `OkEnvelope` `.data` → `FNpcStateSnapshot` correctly (character fields present, relations count, events array)
+    - [ ] Non-2xx or parse error → empty `FNpcStateSnapshot` + error delegate; no crash
+- [ ] Add `GetNpcState(FName NpcId, ...)` to `INpcDialogueService` if not already present from DEC-013. Non-blocking: return immediately; callback with `FNpcStateSnapshot` fires on game thread. All parsing in NpcEngineClient; only `FNpcStateSnapshot` crosses the module boundary.
+- [ ] Write failing Automation Spec for `UGossipCacheSubsystem` (DemoGame/Tests):
+  - [ ] `AddGossipEntry(FName SourceNpcId, FName EventId, int32 HopCount, FText DistortionText)` stores a `FGossipEntry` USTRUCT
+  - [ ] `GetChainForEvent(FName EventId)` returns entries in HopCount ascending order
+  - [ ] Journal entry for an NPC at a hop is only returned after `MarkPlayerSpokeToNpc(NpcId)` is called
+- [ ] `UGossipCacheSubsystem` (World Subsystem, DemoGame module, Net I/O: no):
+  - [ ] Stores `TArray<FGossipEntry>` (USTRUCT `FGossipEntry`: `SourceNpcId`, `EventId`, `HopCount`, `DistortionText`, `bPlayerSpokeToNpc`)
+  - [ ] Updated after each tick: calls `Service->GetNpcState(NPC_ID_OLD_HENRYK_CONSTANT)` through `INpcDialogueService` — NPC ID via named FName constant, not a string literal. Parses `FNpcStateSnapshot.Events` to check if the war event `knowledge_state` has updated; if so, adds/updates Henryk's hop entry.
+  - [ ] Updated when dialogue response `learned_facts` contains a war-related event key (keyed by event ID FName constant)
+  - [ ] No `FHttpModule`; no JSON parsing; all net I/O through `INpcDialogueService`
+- [ ] `URumorJournalWidget` (UUserWidget, Tab key, DemoGame module, Net I/O: no):
+  - [ ] Reads from `UGossipCacheSubsystem`; refreshes on open
+  - [ ] Per chain: source → intermediate → endpoint NPC entries as card rows
+  - [ ] Each hop: NPC name (authored, not raw ID), authored distortion text (from seed), distortion level badge: `HopCount == 0` → "Firsthand"; `HopCount == 1` → "Rumor"; `HopCount >= 2` → "Distorted"
+  - [ ] Chain entry row only shown after `bPlayerSpokeToNpc == true` for that hop's NPC
+  - [ ] No art — readable text layout only at this stage
+- [ ] `ANoticeBoard` Actor (DemoGame module, Net I/O: no):
+  - [ ] `UPROPERTY TArray<FText> RumorTiers` (authored — 3 tiers: pre-war / rumors spreading / distorted widely). Property set in editor; not hardcoded in C++.
+  - [ ] `UPROPERTY TArray<int32> TierTickThresholds` (e.g., [0, 2, 4]). Named in a constants header; not magic numbers.
+  - [ ] Listens to `UNpcWorldSubsystem::FOnTickAdvanced`; advances to next tier when `TickCount` passes the authored threshold
+  - [ ] On E-examine: displays current tier text in a popup panel
+- [ ] Sorn quest chain unlock: `UDialogueComponent::OnTrustChanged` for the guard captain NPC (FName constant — not string literal) → if accumulated trust ≥ `TRUST_GATE_SORN_QUEST` named constant (threshold=50) → `UQuestSubsystem::ActivateQuest(QUEST_ID_PATROL_DUTY named constant)` → quest log updates
+- [ ] **GATE: Gossip chain 5/5 — do not start Phase 7 until this passes.**
+  - [ ] Run the full golden path 5 times from a fresh seed: Tavern (speak with Mira) → Barracks (build trust with Sorn; he shares war information) → Tavern (tick fires) → Market (speak with Old Henryk)
+  - [ ] In all 5 runs: Henryk's dialogue response must contain the distorted war account from §7.2
+  - [ ] If any run fails: tune `gossipy` and `credulity` personality values in `DemoWorld_v1.json` and re-run the seeder. Do not advance to Phase 7 until 5/5 pass.
+- [ ] **Greybox acceptance gate:** All 17 beats from §10 of the game design roadmap are playable start-to-finish. All trust gates, quest steps, gossip chain, Rumor Journal, and faction fork must be functional. Any non-functional beat is a blocker for Phase 7.
+
+### [EDITOR SESSION] — Notice Board + Journal Widget
+
+**What to do in Unreal Editor / Rider:**
+1. Create `BP_NoticeBoard` (extends `ANoticeBoard` C++ base; prefix `BP_`). Set `RumorTiers` and `TierTickThresholds` UPROPERTY arrays.
+2. Place `BP_NoticeBoard` in `L_MarketSquare` and `L_GuardBarracks`. Wire E-examine trigger.
+3. Create `WBP_RumorJournal` (child of `URumorJournalWidget` C++ base): lay out chain cards with NPC name, distortion text, distortion level badge. Wire `BindWidget`. No Blueprint logic.
+4. Bind Tab key to open/close `WBP_RumorJournal` from the player HUD (or `UEnhancedInputComponent` action).
+
+**Checklist (manual):**
+- [ ] PIE: examine notice board in market square → shows tier 1 text
+- [ ] PIE: after 2 ticks, notice board advances to tier 2 text
+- [ ] PIE: Tab opens journal; chain cards appear only after player has spoken to the NPC at that hop
+- [ ] PIE after full golden path: journal shows Sorn → Mira → Henryk chain with correct distortion badges
+
+**Done when:** PIE Tab shows the complete Sorn → Mira → Henryk chain with distortion badges; all 17 beats play without blocking the reviewer; gossip chain 5/5 verified before tagging this phase complete.
+
+> §14 acceptance criteria addressed: "After the golden path, Old Henryk's dialogue contains the distorted war account." · "A naive observer who heard Sorn's account can identify Henryk's account as a distortion of it." · "Rumor Journal shows the Sorn → Mira → Henryk chain with distortion level labels at each hop." · "Sorn trust gate unlocks `patrol_duty`. Quest appears in the quest log."
+
+---
+
+## Phase 7 — MetaHuman + Dialogue Camera
+
+**Goal:** Replace capsule NPCs with MetaHuman and Fab humanoid actors; cinematic dialogue camera active; engine-driven expressions on MetaHuman faces.
+**Independently demoable:** Initiating dialogue with Mira shows her MetaHuman face, camera blending to `DialogueCamSocket`, and expression change in response to the `facial_expression` payload.
+**Prerequisites:** Phase 6 gossip chain 5/5 verified and greybox acceptance gate passed; Phase 11 MetaHuman assets (Mira, Sorn, Lira) exported to UE5 project and Fab humanoids acquired.
+**Quality gate:** `pwsh Scripts/check.ps1 -WithBuild`
+
+**C++ tasks (Rider, no editor required):**
+- [ ] `UFacialExpressionMapper` (NpcEngineClient module, Net I/O: no):
+  - [ ] Write failing Automation Spec first: maps `EFacialExpressionType::Neutral` → correct morph target name; maps unknown enum value → `Neutral` without crash; `ApplyExpression` with null `USkeletalMeshComponent*` → logs warning and returns without crash
+  - [ ] Maps each `EFacialExpressionType` to `(TargetMorphName FName, WeightScale float)` pair. Lookup stored in `DA_FacialExpressionMap` DataAsset (prefix `DA_`).
+  - [ ] `ApplyExpression(USkeletalMeshComponent*, EFacialExpressionType, int32 Intensity)`: blends to target morph weight over 0.3 s via `FTimerHandle`; function ≤ 40 lines
+  - [ ] Unknown `EFacialExpressionType`: `UE_LOG(LogNpcEngine, Warning, "UnknownExpression=%s", …)` + apply `Neutral`. Never crash.
+- [ ] `UDialogueComponent` camera blend (DemoGame module, Net I/O: no):
+  - [ ] `OnStartDialogue`: `APlayerController::SetViewTargetWithBlend(NpcDialogueCam, 0.3f, VTBlend_Cubic)` where `NpcDialogueCam` is a camera positioned at the NPC's `DialogueCamSocket`
+  - [ ] `OnDialogueClose`: blend back to player `USpringArmComponent` camera (0.4 s)
+  - [ ] Thinking state: set NPC look-at target to player head socket; cleared on response received
+
+### [EDITOR SESSION] — MetaHuman Import + Camera Socket Setup
+
+**What to do in Unreal Editor / Rider:**
+
+**VRAM gate — complete this before importing Lira:**
+1. Load `L_Tavern` with Mira MetaHuman placed (`BP_NPC_Mira`). Open `stat gpu` (console command). Confirm VRAM < 10 GB.
+2. Load `L_GuardBarracks` with Sorn MetaHuman placed (`BP_NPC_Sorn`). Confirm VRAM < 10 GB.
+3. If either scene exceeds 10 GB: investigate (reduce texture pool, LOD settings, streaming). Record findings in DECISIONS.md before continuing. Do not import Lira until Mira scene is under budget.
+
+**MetaHuman setup (after VRAM gate passes):**
+4. Create `BP_NPC_Mira` (extends `ANpcActorBase`; prefix `BP_`): place Mira MetaHuman mesh. Set `NpcId` UPROPERTY to `mira_innkeeper` FName constant. Configure Animation Blueprint with looping thinking idle + neutral blend space.
+5. Create `BP_NPC_Sorn` (extends `ANpcActorBase`): set `NpcId` = captain_sorn constant.
+6. Create `BP_NPC_Lira` (extends `ANpcActorBase`): set `NpcId` = lira_fence constant. Place in `L_TavernBack` sub-level only.
+7. Source Aldric rigged humanoid from Fab (acquired in Phase 11). Create `BP_NPC_Aldric` (extends `ANpcActorBase`; prefix `BP_`): set `NpcId` = aldric_merchant constant. Place in `L_MarketSquare`.
+8. Source Old Henryk rigged humanoid from Fab (acquired in Phase 11). Create `BP_NPC_Henryk` (extends `ANpcActorBase`; prefix `BP_`): set `NpcId` = old_henryk constant. Place in `L_MarketSquare`.
+
+**DialogueCamSocket — required for all 5 NPCs:**
+9. For each NPC skeleton, add a socket named exactly `DialogueCamSocket` positioned to frame the NPC face in close-up at eye level. This is a hard deliverable; dialogue camera blend fails without it.
+
+**Expression setup:**
+10. On each MetaHuman Animation Blueprint: add a morph target blend layer driven by `UFacialExpressionMapper` output. Wire `EFacialExpressionType` → blend weights.
+11. On Aldric and Henryk Animation Blueprints: add simplified emotion state machine (Neutral / Happy / Wary / Fearful states) wired to a blend space. Reduced fidelity is acceptable.
+
+**Checklist (manual):**
+- [ ] Mira MetaHuman renders in `L_Tavern`; VRAM stat < 10 GB
+- [ ] Sorn MetaHuman renders in `L_GuardBarracks`; VRAM stat < 10 GB
+- [ ] Lira MetaHuman renders in `L_TavernBack`; Mira and Lira never simultaneously in GPU memory (confirm via `stat gpu` or RenderDoc snapshot)
+- [ ] Aldric and Old Henryk humanoids placed in `L_MarketSquare`
+- [ ] All 5 NPC actors have `DialogueCamSocket` added to their skeletons
+- [ ] `BP_NPC_Mira` expression layer changes when `ApplyExpression` is called from `UDialogueComponent`
+
+**Done when:** PIE — approach Mira, press E; camera blends smoothly to `DialogueCamSocket` framing; receive dialogue response; Mira's expression changes based on `facial_expression.type`; VRAM < 10 GB in each scene; Mira and Lira not simultaneously loaded.
+
+> §14 acceptance criteria addressed: "MetaHuman expressions animate during dialogue in response to the `facial_expression` payload." · "Thinking animation plays during LLM wait. Input is locked during wait."
+
+---
+
+## Phase 8 — Environment Art Pass
+
+**Goal:** Replace box geometry with sourced Quixel/Fab environment assets.
+**Independently demoable:** All four levels look and feel like a real medieval world; level transitions are seamless at 60 fps.
+**Prerequisites:** Phase 7 (MetaHumans placed and VRAM verified); Phase 11 Fab/Quixel environment packs acquired.
+**Quality gate:** `pwsh Scripts/check.ps1 -WithBuild`
+
+### [EDITOR SESSION] — Environment Dressing + Lighting
+
+**What to do in Unreal Editor / Rider:**
+1. **`L_Tavern`**: dress with Quixel medieval interior kit — hearth prop, bar counter (SM_ prefixed static meshes), tables, chairs, candle holders, wooden beam supports. Assign baked lightmap to all static geometry. Place 3–4 dynamic point lights (candles, hearth) as hero light sources only. No Lumen in demo v1 — record decision in DECISIONS.md with rationale (VRAM + performance budget).
+2. **`L_TavernBack`**: dress from the same interior kit — crates (SM_), barrels (SM_), rough stone wall sections. Apply a dark post-process volume (low exposure, desaturated). Reduce shadow map resolution where possible for VRAM budget.
+3. **`L_MarketSquare`**: dress with Quixel outdoor medieval kit — cobblestone ground material (M_ prefix), merchant stall meshes (SM_), awnings (SM_), notice board prop (SM_). Place `BP_NoticeBoard` actor at the notice board prop position. Baked lightmap; dynamic sky-light contribution only.
+4. **`L_GuardBarracks`**: dress with stone wall segments (SM_), gate arch (SM_), training props for decoration only (non-interactive). Reuse stone Material Instances (MI_ prefix) from the market kit to share texture memory.
+5. **Build lightmaps** for all four levels. Resolve all unlit / invalid lightmap warnings before proceeding.
+6. **NavMesh volumes**: add `NavMeshBoundsVolume` to each level. Non-functional for NPC pathfinding in demo v1, but required to prevent collision issues at NPC actor placement points.
+7. **Level streaming performance check**: transition `L_Tavern` ↔ `L_MarketSquare` at the 60 fps target. If any frame transition causes a stall > 1 frame: add a brief UUserWidget black fade (0.15 s) or pre-stream `L_MarketSquare` on tavern entry. Record the chosen mitigation in DECISIONS.md.
+
+**Checklist (manual):**
+- [ ] All four levels dressed with Quixel assets; no stylized or mismatched assets mixed in
+- [ ] Lightmaps built; no unlit warnings in any level
+- [ ] NavMesh volumes present in each level
+- [ ] `L_Tavern` ↔ `L_MarketSquare` transition: no visible stall at 60 fps target
+- [ ] `BP_NoticeBoard` actor placed at the notice board prop position in `L_MarketSquare`
+- [ ] `stat gpu` in each scene shows VRAM < 10 GB
+
+**Done when:** All four levels load with photorealistic medieval art; level transitions are seamless at 60 fps; VRAM < 10 GB per scene.
+
+> §14 acceptance criteria addressed: "Player navigates between all three named locations. Tick fires and arrival subtitle appears on each." · "Tavern back room does not fire a tick. Sub-level streams in without a visible hitch."
+
+---
+
+## Phase 9 — UI Polish + Audio
+
+**Goal:** Dialogue panel art, Rumor Journal art, relationship meter HUD, ambient audio, and UI sounds all at shipped quality.
+**Independently demoable:** The full game loop looks and sounds like a finished product.
+**Prerequisites:** Phase 8 (environment art complete; levels dressed and lit).
+**Quality gate:** `pwsh Scripts/check.ps1 -WithBuild`
+
+### [EDITOR SESSION] — UI Art Pass + Audio Integration
+
+**What to do in Unreal Editor / Rider:**
+
+**UI art pass:**
+1. `WBP_Dialogue`: apply parchment or dark-tavern-wood theme. Style the text history area, input field (add send icon), and `memories_recalled` badge (floating amber note appearance). Use Material assets with prefix `M_` for any custom widget materials.
+2. `WBP_RumorJournal`: render chain entries as connected cards with hand-drawn-style connector lines (static art or UImage with line texture). Distortion level badges: green (`T_Badge_Firsthand`), yellow (`T_Badge_Rumor`), red (`T_Badge_Distorted`). Texture prefix `T_`.
+3. `WBP_RelationshipMeter`: NPC portrait (bound via `TSoftObjectPtr<UTexture2D>` — no hard asset references that bloat the cooked graph). Trust bar animates on `OnTrustChanged` using a 0.5 s spring-settle UWidgetAnimation or C++ lerp tick.
+4. `WBP_QuestLog`: parchment list background. Active step highlighted. Completed steps show a checkmark icon (`T_Icon_Checkmark`).
+5. Arrival subtitle: assign an elegant serif font asset (FA_ or engine default). Center the text, 3-second fade. Add semi-transparent letterbox bars as optional `UImage` overlay.
+
+**Ambient audio:**
+6. Import tavern ambient audio from acquired Fab pack. Add `AudioVolume` in `L_Tavern`. Assign `MetaSound` or `SoundCue` (prefix `A_`) — hearth crackle, low murmur, wood creak loop. Fade on volume enter/exit.
+7. Import outdoor medieval audio. Add `AudioVolume` in `L_MarketSquare` — bustle, wind, cart sounds. Assign `A_Amb_MarketSquare`.
+8. Import barracks ambient audio. Add `AudioVolume` in `L_GuardBarracks` — distant drills, metal clank, wind. Assign `A_Amb_Barracks`.
+
+**UI sounds:**
+9. Import UI audio assets from Fab pack. Assign to widget events via `UGameplayStatics::PlaySound2D` (no audio hardcoded inline in C++):
+   - Quest accept: `A_UI_QuestAccept` (light confirmation chime)
+   - Journal open/close: `A_UI_JournalOpen` (parchment rustle)
+   - Trust increase: `A_UI_TrustIncrease` (subtle positive ping)
+   - Faction choice confirm: `A_UI_FactionChoice` (weighted neutral tone)
+
+**Checklist (manual):**
+- [ ] `WBP_Dialogue` parchment art applied; memories badge styled as amber note
+- [ ] `WBP_RumorJournal` chain cards with coloured distortion badges render correctly
+- [ ] `WBP_RelationshipMeter` trust bar animates with spring settle
+- [ ] `WBP_QuestLog` parchment style applied; completed steps show checkmark
+- [ ] Tavern, market, barracks ambient audio plays in PIE when entering each level
+- [ ] UI sounds fire on quest accept, journal open/close, trust increase, faction choice
+
+**Done when:** Full game loop is visually and aurally polished; all widget art applied; ambient audio plays in all scenes; UI sounds fire on their triggers.
+
+---
+
+## Phase 10 — Content Polish + Acceptance Validation
+
+**Goal:** All authored content finalized, seed verified against the live engine, and all acceptance criteria passed.
+**Independently demoable:** A naive player who has not seen the demo reaches beat 15 (the gossip reveal) within 25 minutes without being guided.
+**Prerequisites:** Phase 9 (UI and audio complete; full game loop playable).
+**Quality gate:** `pwsh Scripts/check.ps1 -WithBuild -WithTests`
+
+- [ ] **Author all notice board texts** — 3 tiers × up to 3 boards = 9 entries. Use "Thornfield" in all authored text; no other town name. Tiers: pre-war silence / rumors spreading / distorted widely.
+- [ ] **Author full `memories_recalled` badge lookup table** in `DA_MemoryBadgeLookup` DataAsset: authored `FText` display strings per memory node ID FName. Replace all Phase 3 stub entries with final authored text. Do not use raw memory node IDs as display text.
+- [ ] **Review and finalize fallback canned lines** for all 5 NPCs (used on 30 s LLM timeout or non-2xx). Authored per phase: Mira + Lira (Phase 4), Aldric + Sorn (Phase 5), Old Henryk (Phase 6). Ensure each line fits the NPC's personality and does not break immersion.
+- [ ] **Author `aldric_confession` dialogue context** — seed verbatim to the engine via the appropriate seeding endpoint (verify path in DECISIONS.md per the Phase 3 admin endpoint task):
+  - `aldric_merchant.belief["amulet_origin"]`: *"This amulet — I took it as trade debt in Riverwheel from a soldier passing through. He needed coin quickly; I didn't ask why. That was weeks ago. Now I have guardsmen coming to my stall asking what I know. I understand it now: that man deserted his post. He fled the northern garrison before the skirmish was reported, and this is what he left behind. I'm holding his evidence. That's what they want."*
+  - `aldric_merchant.secret["amulet_truth"]`: *"The amulet is evidence of a desertion from the northern garrison. The soldier who owned it sold it to Aldric to fund his flight from the northern pass before the skirmish the guards are suppressing."*
+- [ ] **Final gossip chain verification** — 5 fresh-seed runs. All 5 must show Old Henryk delivering the distorted war account in his dialogue response. If any run fails: tune `gossipy` and `credulity` values in `DemoWorld_v1.json` and re-run the seeder. Do not mark this phase complete until 5/5 pass.
+- [ ] **Final distortion review** — play as a player who spoke with Sorn, then talk to Old Henryk. Is Henryk's version recognizably a corruption of Sorn's? If a neutral observer cannot identify the connection, exaggerate the authored distortion text in the seed (Henryk's hop 2 entry) and re-verify with another run.
+- [ ] `DemoWorld_v1.json` reconciled against live `GET http://localhost:8000/openapi.json` and `docs/ENGINE_CONTRACT.md`. Any property shape drift → patch the seed and re-run the seeder.
+- [ ] **Naive user playtest**: one person who has not seen or worked on the demo plays without guidance. An observer notes every moment of confusion (particularly "what do I do next?" moments). Fix every such moment before marking acceptance. Playtest must confirm the player reaches beat 15 within 25 minutes.
+- [ ] **Run acceptance criteria checklist** — full §14 content reproduced in the Acceptance Criteria section below. All items must pass. No partial credit.
+
+> §14 acceptance criteria addressed: "A naive player (who has not seen the demo) reaches beat 15 (the gossip reveal) within 25 minutes without being guided." · All items in the Acceptance Criteria section below.
+
+---
+
+## Phase 11 — Asset Acquisition (Parallel Track)
+
+> **Note:** Run this phase in parallel with Phases 2–6. MetaHuman assets and Fab environment packs must be ready before Phase 7 can start. **Blocking dependency: Phase 7 Prerequisites include Phase 11 completion.**
+
+**Goal:** All visual and audio assets (MetaHumans, environment kits, humanoid characters, audio packs) acquired and project-ready before Phases 7–9 begin.
+**Independently demoable:** MetaHuman characters open in MetaHuman Creator and export to UE5 without error; Fab/Quixel packs appear in the Content Browser.
+**Prerequisites:** None — runs in parallel with Phases 2–6.
+**Quality gate:** N/A — all validation is manual (editor asset work).
+
+### [EDITOR SESSION] — MetaHuman Creation (long-pole; start immediately)
+
+**Creation order is staggered to avoid wasted rework. Do not start Lira until Mira is validated.**
+
+**Step 1 — Mira (P1 priority, start first):**
+1. Open MetaHuman Creator. Design Mira: warm but guarded face; late 30s to early 40s; innkeeper archetype. Export to UE5 project.
+2. Load `L_Tavern` with `BP_NPC_Mira` placed. Open `stat gpu`. Confirm VRAM < 10 GB in the Mira scene.
+3. Validate morph target availability for the 6 `EFacialExpressionType` values (`Neutral`, `Happy`, `Wary`, `Fearful`, `Angry`, `Sad`). Confirm MetaHuman blend shapes cover the needed range.
+4. If VRAM > 10 GB: investigate (reduce LOD distance, texture pool, streaming settings). Resolve before proceeding to Lira.
+
+**Step 2 — Sorn (P1 priority, start in parallel with Mira):**
+5. Design Sorn: stoic, weathered military face; 45–55 years old; harder trust arc. Export to UE5.
+6. Validate in `L_GuardBarracks`. Confirm VRAM < 10 GB. Confirm expression morph coverage.
+
+**Step 3 — Lira (P2 priority, start only after Mira is validated):**
+7. Design Lira: sharp, evasive face; early 30s; corner-booth rogue. Export to UE5.
+8. Load `L_TavernBack` (sub-level of `L_Tavern`) with Lira placed. Confirm Mira and Lira are **never simultaneously in GPU memory** — check `stat gpu` while manually toggling sub-level visibility. If they co-load, the sub-level streaming boundary must be tightened with an explicit unload call.
+9. **Fallback decision point:** If `L_Tavern` with Mira AND `L_TavernBack` with Lira together exceed 10 GB VRAM (even with sub-level isolation), downgrade Lira to a Marketplace humanoid character and reallocate the MetaHuman VRAM budget to environment quality. Record the decision as **DEC-NNN** in `DECISIONS.md`.
+
+### [EDITOR SESSION] — Fab / Quixel Asset Acquisition
+
+**Environment packs (must be complete before Phase 8):**
+10. Identify and acquire a photorealistic medieval interior kit from Quixel Megascans / Fab (for `L_Tavern` and `L_TavernBack`). Verify it matches MetaHuman photorealism quality. Do not mix stylized Fab assets in the same scene.
+11. Identify and acquire a photorealistic outdoor medieval kit from Quixel / Fab (for `L_MarketSquare` and `L_GuardBarracks`). Can share stone texture samples with the indoor kit via Material Instances.
+
+**Character assets (must be complete before Phase 7):**
+12. Identify and acquire a rigged medieval merchant humanoid actor from Fab for Aldric. Bring into UE5; apply prefix `BP_NPC_Aldric` when creating the Blueprint.
+13. Identify and acquire a rigged elderly merchant humanoid actor from Fab for Old Henryk. Bring into UE5; apply prefix `BP_NPC_Henryk`.
+
+**Audio packs (must be complete before Phase 9):**
+14. Identify and acquire ambient audio packs from Fab: tavern interior (hearth crackle, low murmur, wood creak), outdoor medieval (market bustle, wind, carts), barracks (distant drills, metal clank, wind), and UI sounds (confirmation chime, parchment rustle, positive ping, weighted tone).
+
+**Checklist (manual):**
+- [ ] Mira MetaHuman exported to UE5 project; renders in `L_Tavern` with VRAM < 10 GB; expression morphs validated
+- [ ] Sorn MetaHuman exported to UE5 project; renders in `L_GuardBarracks` with VRAM < 10 GB
+- [ ] Lira MetaHuman exported (or Marketplace fallback decided and recorded in DECISIONS.md); Mira + Lira confirmed not simultaneously in GPU memory
+- [ ] Aldric rigged humanoid in Content Browser; `BP_NPC_Aldric` Blueprint created with correct prefix
+- [ ] Old Henryk rigged humanoid in Content Browser; `BP_NPC_Henryk` Blueprint created with correct prefix
+- [ ] Medieval interior kit in Content Browser; photorealistic quality confirmed
+- [ ] Outdoor medieval kit in Content Browser; stone texture sharing with indoor kit verified
+- [ ] Audio packs in Content Browser; all four categories present
+- [ ] VRAM strategy confirmed: no more than 1 MetaHuman loaded at a time in any single scene
+
+**Done when:** All MetaHumans open in PIE without VRAM issues; all Fab/Quixel packs visible in Content Browser; Phase 7 can begin without waiting on any outstanding asset.
+
+---
+
+## Acceptance Criteria — Demo v1
+
+> Source: `docs/game_design_roadmap.md` §14. All items must pass before the demo is considered complete. No partial credit.
+
+A session qualifies as **demo-complete** when ALL of the following pass without developer intervention:
+
+### Setup
+- [ ] Engine health check returns 200. Seeder runs to completion with 0 errors.
+- [ ] `NpcEngine.Smoke` Exec command returns a non-empty `npc_response` in Output Log.
+
+### World + Navigation
+- [ ] Player navigates between all three named locations. Tick fires and arrival subtitle appears on each.
+- [ ] Tavern back room does not fire a tick. Sub-level streams in without a visible hitch.
+- [ ] Re-entering the same location does not fire a tick.
+
+### Dialogue + Trust
+- [ ] Player initiates dialogue with Mira. Types a message. Receives a response within 30 seconds or a graceful fallback line.
+- [ ] Trust meter updates visibly after each exchange.
+- [ ] The `memories_recalled` badge appears at least once during the golden path.
+- [ ] MetaHuman expressions animate during dialogue in response to the `facial_expression` payload.
+- [ ] Thinking animation plays during LLM wait. Input is locked during wait.
+
+### Investigation + Trust Gates
+- [ ] Gate 1 (Mira trust > 25): Mira reveals information about Aldric's situation. Gate clears in dialogue — no waypoint marker required.
+- [ ] Player identifies Aldric through 2+ NPC conversations. No map marker. Observer can confirm the player discovered Aldric socially.
+
+### Quest System
+- [ ] Quest log shows `find_wine_merchant` as the first active step.
+- [ ] Chain A completes: quest log shows `deliver_amulet` complete, `aldric_confession` step appears.
+- [ ] Faction fork fires. Faction standing changes (logged or visible in debug HUD).
+- [ ] Lira's back room is inaccessible below gate 2 and accessible above it.
+
+### Gossip Chain + Journal
+- [ ] After the golden path (Tavern → Barracks → Tavern → Market with appropriate conversations), Old Henryk's dialogue contains the distorted war account.
+- [ ] A naive observer who heard the player's conversation with Sorn can identify Henryk's account as a distortion of it.
+- [ ] Rumor Journal (Tab) shows the Sorn → Mira → Henryk chain with distortion level labels at each hop.
+- [ ] Sorn trust gate unlocks `patrol_duty`. Quest appears in the quest log.
+
+### Stability
+- [ ] No crashes across the full golden path.
+- [ ] LLM timeout produces a fallback line — no hang, no freeze, no error popup.
+- [ ] `DegradationLevel != "full"` is logged silently and does not break the game.
+
+### Playtest Gate
+- [ ] A naive player (who has not seen the demo) reaches beat 15 (the gossip reveal) within 25 minutes without being guided.
