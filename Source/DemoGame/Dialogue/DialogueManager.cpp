@@ -1,16 +1,45 @@
 #include "DialogueManager.h"
 #include "NpcActorBase.h"
 #include "DemoGame.h"
-#include "NpcEngineRestClient.h"
+#include "NpcDialogueService.h"
+#include "NpcEngineServiceSubsystem.h"
 #include "NpcEngineTypes.h"
 #include "PlayerIdProvider.h"
+#include "Engine/GameInstance.h"
 
 void UDialogueManagerSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
     Super::Initialize(Collection);
 
-    RestClient = NewObject<UNpcEngineRestClient>(this);
+    // The service is resolved lazily on first use (from the GameInstance composition root), so we
+    // never reference the concrete client here. Tests inject a fake via SetDialogueService().
     UE_LOG(LogDemoGame, Log, TEXT("DialogueManagerSubsystem initialised."));
+}
+
+void UDialogueManagerSubsystem::SetDialogueService(TScriptInterface<INpcDialogueService> InService)
+{
+    DialogueService = InService;
+}
+
+INpcDialogueService* UDialogueManagerSubsystem::ResolveService()
+{
+    if (DialogueService.GetInterface())
+    {
+        return DialogueService.GetInterface();
+    }
+
+    const UWorld* World = GetWorld();
+    UGameInstance* GameInstance = World ? World->GetGameInstance() : nullptr;
+    if (UNpcEngineServiceSubsystem* ServiceSubsystem =
+            GameInstance ? GameInstance->GetSubsystem<UNpcEngineServiceSubsystem>() : nullptr)
+    {
+        DialogueService = ServiceSubsystem->GetDialogueService();   // cache for subsequent turns
+        return DialogueService.GetInterface();
+    }
+
+    UE_LOG(LogDemoGame, Error,
+        TEXT("ResolveService: NpcEngineServiceSubsystem unavailable; cannot send dialogue."));
+    return nullptr;
 }
 
 void UDialogueManagerSubsystem::Deinitialize()
@@ -49,9 +78,11 @@ void UDialogueManagerSubsystem::SubmitPlayerMessage(const FString& Message)
         UE_LOG(LogDemoGame, Warning, TEXT("SubmitPlayerMessage: no active dialogue session."));
         return;
     }
-    if (!RestClient)
+    INpcDialogueService* Service = ResolveService();
+    if (!Service)
     {
-        UE_LOG(LogDemoGame, Error, TEXT("SubmitPlayerMessage: RestClient is null."));
+        UE_LOG(LogDemoGame, Error, TEXT("SubmitPlayerMessage: no dialogue service available."));
+        HandleDialogueError(TEXT("Dialogue service unavailable."));
         return;
     }
 
@@ -83,7 +114,7 @@ void UDialogueManagerSubsystem::SubmitPlayerMessage(const FString& Message)
         }
     });
 
-    RestClient->SendDialogue(Request, SuccessDelegate, ErrorDelegate);
+    Service->SendDialogue(Request, SuccessDelegate, ErrorDelegate);
 }
 
 void UDialogueManagerSubsystem::EndDialogue()

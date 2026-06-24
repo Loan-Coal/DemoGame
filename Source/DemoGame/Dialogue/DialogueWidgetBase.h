@@ -40,20 +40,20 @@ public:
 
     // ── Engine → Widget events (implementable in Blueprint) ──────────────────
 
-    /** Show the NPC's response line in the dialogue box. */
-    UFUNCTION(BlueprintImplementableEvent, Category = "Dialogue|Display")
+    /** Show the NPC's response line in the dialogue box. C++ default writes to ResponseText if bound. */
+    UFUNCTION(BlueprintNativeEvent, Category = "Dialogue|Display")
     void OnNpcResponseReceived(const FString& NpcResponse, const FString& NpcDisplayName);
 
-    /** Show an error/fallback message. */
-    UFUNCTION(BlueprintImplementableEvent, Category = "Dialogue|Display")
+    /** Show an error/fallback message. C++ default writes to ResponseText if bound. */
+    UFUNCTION(BlueprintNativeEvent, Category = "Dialogue|Display")
     void OnDialogueError(const FString& ErrorMessage);
 
-    /** Called when the dialogue session begins — set the NPC name header. */
-    UFUNCTION(BlueprintImplementableEvent, Category = "Dialogue|Display")
+    /** Called when the dialogue session begins. C++ default shows the widget + clears the box. */
+    UFUNCTION(BlueprintNativeEvent, Category = "Dialogue|Display")
     void OnDialogueBegun(ANpcActorBase* Npc);
 
-    /** Called when the session ends — hide/reset the widget. */
-    UFUNCTION(BlueprintImplementableEvent, Category = "Dialogue|Display")
+    /** Called when the session ends. C++ default hides the widget. */
+    UFUNCTION(BlueprintNativeEvent, Category = "Dialogue|Display")
     void OnDialogueEnded();
 
     static constexpr int32 MaxPlayerMessageChars = 1000;
@@ -75,14 +75,13 @@ protected:
     TObjectPtr<UScrollBox> ResponseScroll;
 
 private:
+    // Bound to the subsystem's dynamic multicast delegates — must be UFUNCTION for AddDynamic.
+    UFUNCTION()
     void OnNpcSpoke(const FString& Response, const FString& DisplayName);
+    UFUNCTION()
     void OnNpcError(const FString& Error);
+    UFUNCTION()
     void OnBegun(ANpcActorBase* Npc);
+    UFUNCTION()
     void OnEnded();
-
-    // Delegate handles for cleanup.
-    FDelegateHandle NpcSpokeHandle;
-    FDelegateHandle ErrorHandle;
-    FDelegateHandle BegunHandle;
-    FDelegateHandle EndedHandle;
 };

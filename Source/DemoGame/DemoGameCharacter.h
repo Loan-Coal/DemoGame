@@ -49,10 +49,22 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Input")
 	UInputAction* MouseLookAction;
 
+	/** Interact Input Action (assign IA_Interact). Falls back to the E key if unset. */
+	UPROPERTY(EditAnywhere, Category="Input")
+	UInputAction* InteractAction;
+
+	/** Dialogue UMG widget to spawn on interaction — a UDialogueWidgetBase subclass (assign WBP_Dialogue). */
+	UPROPERTY(EditAnywhere, Category="NPC|Dialogue")
+	TSubclassOf<class UDialogueWidgetBase> DialogueWidgetClass;
+
+	/** Maximum distance (cm) to an NPC at which interaction starts a conversation. */
+	UPROPERTY(EditAnywhere, Category="NPC|Dialogue")
+	float InteractRadius = 250.f;
+
 public:
 
 	/** Constructor */
-	ADemoGameCharacter();	
+	ADemoGameCharacter();
 
 protected:
 
@@ -66,6 +78,32 @@ protected:
 
 	/** Called for looking input */
 	void Look(const FInputActionValue& Value);
+
+	// ── NPC interaction / dialogue ───────────────────────────────────────────
+
+	/** Interact pressed: open dialogue with the nearest in-range NPC, or close the active conversation. */
+	void OnInteractPressed();
+
+	/** Closest ANpcActorBase within InteractRadius, or nullptr. */
+	class ANpcActorBase* FindNearestNpc() const;
+
+	/** Spawn + show the dialogue widget, switch to UI input, then BeginDialogue. */
+	void OpenDialogue(class ANpcActorBase* Npc);
+
+	/** End the active conversation (cleanup happens in HandleDialogueEnded). */
+	void CloseDialogue();
+
+	/** Bound to the subsystem's OnDialogueEnded — tears down the widget and restores game input. */
+	UFUNCTION()
+	void HandleDialogueEnded();
+
+	/** Convenience accessor for the world's dialogue subsystem. */
+	class UDialogueManagerSubsystem* GetDialogueManager() const;
+
+private:
+	/** The live dialogue widget while a conversation is open. */
+	UPROPERTY()
+	TObjectPtr<class UDialogueWidgetBase> ActiveDialogueWidget;
 
 public:
 

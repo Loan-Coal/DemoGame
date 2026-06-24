@@ -1,8 +1,46 @@
 #include "NpcEngineConfig.h"
 #include "NpcEngineClient.h"
-#include "Misc/ConfigCacheIni.h"
 #include "HAL/PlatformMisc.h"
 #include "Misc/Paths.h"
+#include "Misc/FileHelper.h"
+
+namespace
+{
+    /**
+     * Minimal [Section]/Key=Value reader. We parse the file by hand rather than via GConfig because
+     * UE's ini parser mangles values containing "//" (e.g. it truncates "http://host" to "http:").
+     * Comment lines start with ';'. First matching key in the section wins.
+     */
+    bool ReadIniValue(const FString& Contents, const FString& Section, const FString& Key, FString& Out)
+    {
+        TArray<FString> Lines;
+        Contents.ParseIntoArrayLines(Lines);
+        bool bInSection = false;
+        for (FString Line : Lines)
+        {
+            Line.TrimStartAndEndInline();
+            if (Line.IsEmpty() || Line.StartsWith(TEXT(";")))
+            {
+                continue;
+            }
+            if (Line.StartsWith(TEXT("[")) && Line.EndsWith(TEXT("]")))
+            {
+                bInSection = Line.Mid(1, Line.Len() - 2).TrimStartAndEnd().Equals(Section, ESearchCase::IgnoreCase);
+                continue;
+            }
+            int32 Eq = INDEX_NONE;
+            if (bInSection && Line.FindChar(TEXT('='), Eq))
+            {
+                if (Line.Left(Eq).TrimStartAndEnd().Equals(Key, ESearchCase::IgnoreCase))
+                {
+                    Out = Line.Mid(Eq + 1).TrimStartAndEnd();
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+}
 
 FNpcEngineConfig FNpcEngineConfig::Load()
 {
@@ -17,15 +55,17 @@ FNpcEngineConfig FNpcEngineConfig::Load()
 
     // 2. Fall back to gitignored Config/NpcEngine.ini.
     const FString IniPath = FPaths::ProjectConfigDir() / TEXT("NpcEngine.ini");
-    if (FPaths::FileExists(IniPath))
+    FString IniContents;
+    if ((Config.BaseUrl.IsEmpty() || Config.ApiKey.IsEmpty())
+        && FFileHelper::LoadFileToString(IniContents, *IniPath))
     {
         if (Config.BaseUrl.IsEmpty())
         {
-            GConfig->GetString(TEXT("NpcEngine"), TEXT("Url"), Config.BaseUrl, IniPath);
+            ReadIniValue(IniContents, TEXT("NpcEngine"), TEXT("Url"), Config.BaseUrl);
         }
         if (Config.ApiKey.IsEmpty())
         {
-            GConfig->GetString(TEXT("NpcEngine"), TEXT("ApiKey"), Config.ApiKey, IniPath);
+            ReadIniValue(IniContents, TEXT("NpcEngine"), TEXT("ApiKey"), Config.ApiKey);
         }
     }
 

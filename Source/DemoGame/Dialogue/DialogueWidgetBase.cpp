@@ -21,11 +21,11 @@ void UDialogueWidgetBase::NativeConstruct()
         return;
     }
 
-    // Bind to subsystem delegates so the widget stays in sync.
-    NpcSpokeHandle = DM->OnNpcSpoke.AddUObject(this, &UDialogueWidgetBase::OnNpcSpoke);
-    ErrorHandle    = DM->OnDialogueError.AddUObject(this, &UDialogueWidgetBase::OnNpcError);
-    BegunHandle    = DM->OnDialogueBegun.AddUObject(this, &UDialogueWidgetBase::OnBegun);
-    EndedHandle    = DM->OnDialogueEnded.AddUObject(this, &UDialogueWidgetBase::OnEnded);
+    // Bind to subsystem delegates so the widget stays in sync (dynamic multicast → AddDynamic).
+    DM->OnNpcSpoke.AddDynamic(this, &UDialogueWidgetBase::OnNpcSpoke);
+    DM->OnDialogueError.AddDynamic(this, &UDialogueWidgetBase::OnNpcError);
+    DM->OnDialogueBegun.AddDynamic(this, &UDialogueWidgetBase::OnBegun);
+    DM->OnDialogueEnded.AddDynamic(this, &UDialogueWidgetBase::OnEnded);
 }
 
 void UDialogueWidgetBase::NativeDestruct()
@@ -36,10 +36,10 @@ void UDialogueWidgetBase::NativeDestruct()
         : nullptr;
     if (DM)
     {
-        DM->OnNpcSpoke.Remove(NpcSpokeHandle);
-        DM->OnDialogueError.Remove(ErrorHandle);
-        DM->OnDialogueBegun.Remove(BegunHandle);
-        DM->OnDialogueEnded.Remove(EndedHandle);
+        DM->OnNpcSpoke.RemoveDynamic(this, &UDialogueWidgetBase::OnNpcSpoke);
+        DM->OnDialogueError.RemoveDynamic(this, &UDialogueWidgetBase::OnNpcError);
+        DM->OnDialogueBegun.RemoveDynamic(this, &UDialogueWidgetBase::OnBegun);
+        DM->OnDialogueEnded.RemoveDynamic(this, &UDialogueWidgetBase::OnEnded);
     }
 
     Super::NativeDestruct();
@@ -107,4 +107,38 @@ void UDialogueWidgetBase::OnBegun(ANpcActorBase* Npc)
 void UDialogueWidgetBase::OnEnded()
 {
     OnDialogueEnded();
+}
+
+// ── BlueprintNativeEvent C++ defaults (a Blueprint subclass may override) ─────
+
+void UDialogueWidgetBase::OnDialogueBegun_Implementation(ANpcActorBase* /*Npc*/)
+{
+    SetVisibility(ESlateVisibility::Visible);
+    if (ResponseText)
+    {
+        ResponseText->SetText(FText::GetEmpty());
+    }
+}
+
+void UDialogueWidgetBase::OnNpcResponseReceived_Implementation(const FString& NpcResponse, const FString& NpcDisplayName)
+{
+    if (ResponseText)
+    {
+        ResponseText->SetText(FText::FromString(FString::Printf(TEXT("%s: %s"), *NpcDisplayName, *NpcResponse)));
+    }
+    UE_LOG(LogDemoGame, Log, TEXT("DialogueWidget | %s: %s"), *NpcDisplayName, *NpcResponse);
+}
+
+void UDialogueWidgetBase::OnDialogueError_Implementation(const FString& ErrorMessage)
+{
+    if (ResponseText)
+    {
+        ResponseText->SetText(FText::FromString(ErrorMessage));
+    }
+    UE_LOG(LogDemoGame, Warning, TEXT("DialogueWidget | error: %s"), *ErrorMessage);
+}
+
+void UDialogueWidgetBase::OnDialogueEnded_Implementation()
+{
+    SetVisibility(ESlateVisibility::Collapsed);
 }

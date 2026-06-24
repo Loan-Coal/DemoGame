@@ -3,12 +3,11 @@
 #include "CoreMinimal.h"
 #include "UObject/Object.h"
 #include "NpcEngineTypes.h"
+#include "NpcDialogueService.h"
 #include "NpcEngineRestClient.generated.h"
 
 // ── Delegates ────────────────────────────────────────────────────────────────
-
-DECLARE_DELEGATE_OneParam(FOnNpcDialogueComplete, const FNpcDialogueResponse& /*Response*/);
-DECLARE_DELEGATE_OneParam(FOnNpcEngineError,      const FString& /*ErrorMessage*/);
+// FOnNpcDialogueComplete / FOnNpcEngineError now live in NpcDialogueService.h (included above).
 
 /** TODO(TTS): fires when decoded audio PCM is ready to play. */
 DECLARE_DELEGATE_OneParam(FOnAudioReady, const TArray<uint8>& /*PCMBytes*/);
@@ -24,7 +23,7 @@ DECLARE_DELEGATE_OneParam(FOnAudioReady, const TArray<uint8>& /*PCMBytes*/);
  * Auth: every request (except /health) carries  Authorization: Bearer <key>.
  */
 UCLASS()
-class NPCENGINECLIENT_API UNpcEngineRestClient : public UObject
+class NPCENGINECLIENT_API UNpcEngineRestClient : public UObject, public INpcDialogueService
 {
     GENERATED_BODY()
 
@@ -38,19 +37,19 @@ public:
      * On error/timeout: OnError receives a description; the caller should surface
      *   a fallback line to the player rather than leaving the UI blank.
      */
-    void SendDialogue(
+    virtual void SendDialogue(
         const FNpcDialogueRequest& Request,
         FOnNpcDialogueComplete OnSuccess,
-        FOnNpcEngineError OnError);
+        FOnNpcEngineError OnError) override;
 
     /**
      * POST /v1/action  (raw response shape A).
      * bSuccess = true when engine returns { "status": "ok" }.
      */
-    void SendActionReport(
+    virtual void SendActionReport(
         const FNpcActionReportRequest& Request,
         TFunction<void(bool /*bSuccess*/)> OnResult,
-        FOnNpcEngineError OnError);
+        FOnNpcEngineError OnError) override;
 
     // ── Health / readiness ───────────────────────────────────────────────────
 
@@ -66,10 +65,10 @@ public:
      * GET /v1/npc/{npc_id}/state  (envelope shape B).
      * OnResult receives the raw .data JSON string for the debug overlay.
      */
-    void GetNpcState(
+    virtual void GetNpcState(
         const FString& NpcId,
         TFunction<void(const FString& /*DataJson*/)> OnResult,
-        FOnNpcEngineError OnError);
+        FOnNpcEngineError OnError) override;
 
     // ── Client-side fallback ─────────────────────────────────────────────────
 

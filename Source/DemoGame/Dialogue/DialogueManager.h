@@ -2,10 +2,10 @@
 
 #include "CoreMinimal.h"
 #include "Subsystems/WorldSubsystem.h"
+#include "NpcDialogueService.h"
 #include "DialogueManager.generated.h"
 
 class ANpcActorBase;
-class UNpcEngineRestClient;
 
 // ── Public delegates (no NpcEngineClient types exposed in the public API) ────
 
@@ -67,6 +67,12 @@ public:
     UFUNCTION(BlueprintPure, Category = "Dialogue")
     bool IsInDialogue() const { return ActiveNpc.IsValid(); }
 
+    /**
+     * Inject the dialogue service (DIP seam). Overrides the default lazy resolution from the
+     * GameInstance composition root — primarily for tests, which supply a fake service.
+     */
+    void SetDialogueService(TScriptInterface<INpcDialogueService> InService);
+
     // ── Delegates ────────────────────────────────────────────────────────────
 
     UPROPERTY(BlueprintAssignable, Category = "Dialogue")
@@ -86,9 +92,13 @@ private:
     void HandleDialogueResponse(const struct FNpcDialogueResponse& Response);
     void HandleDialogueError(const FString& Error);
 
+    /** Return the injected service, or lazily resolve it from the GameInstance composition root. */
+    INpcDialogueService* ResolveService();
+
     TWeakObjectPtr<ANpcActorBase> ActiveNpc;
     FString ActiveSessionId;   // persists across turns in one conversation
 
+    /** The dialogue service (abstract). Injected by tests, else resolved from the GI subsystem. */
     UPROPERTY()
-    TObjectPtr<UNpcEngineRestClient> RestClient;
+    TScriptInterface<INpcDialogueService> DialogueService;
 };

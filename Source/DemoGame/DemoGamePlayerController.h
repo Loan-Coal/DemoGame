@@ -8,7 +8,6 @@
 
 class UInputMappingContext;
 class UUserWidget;
-class UNpcEngineRestClient;
 
 /**
  *  Basic PlayerController class for a third person game
@@ -50,20 +49,6 @@ protected:
 	/** Returns true if the player should use UMG touch controls */
 	bool ShouldUseTouchControls() const;
 
-	// ── NPC Engine smoke test ────────────────────────────────────────────────
-
-	/**
-	 * Console command (exec): tests the NPC Engine pipe.
-	 * Step 1: GET /health  → logs ok/fail.
-	 * Step 2 (if healthy): POST /v1/dialogue with mira_innkeeper → logs npc_response.
-	 * Usage in PIE console: NpcSmokeTest
-	 */
-	UFUNCTION(Exec, Category = "NpcEngine|Debug")
-	void NpcSmokeTest();
-
-private:
-	/** Kept alive during the smoke test to prevent GC before callbacks fire. */
-	UPROPERTY()
-	TObjectPtr<UNpcEngineRestClient> SmokeTestClient;
-
+	// NPC engine smoke test now lives in the NpcEngineClient module as the GameMode-independent
+	// `NpcEngine.Smoke` console command (Source/NpcEngineClient/Private/NpcEngineSmokeCommand.cpp).
 };

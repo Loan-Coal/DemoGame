@@ -10,6 +10,13 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
+#include "InputCoreTypes.h"
+#include "EngineUtils.h"
+#include "Blueprint/UserWidget.h"
+#include "GameFramework/PlayerController.h"
+#include "NpcActorBase.h"
+#include "DialogueManager.h"
+#include "DialogueWidgetBase.h"
 #include "DemoGame.h"
 
 ADemoGameCharacter::ADemoGameCharacter()
@@ -65,10 +72,136 @@ void ADemoGameCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputC
 
 		// Looking
 		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &ADemoGameCharacter::Look);
+
+		// Interacting (Enhanced Input path — assign IA_Interact on the character Blueprint)
+		if (InteractAction)
+		{
+			EnhancedInputComponent->BindAction(InteractAction, ETriggerEvent::Started, this, &ADemoGameCharacter::OnInteractPressed);
+		}
 	}
 	else
 	{
 		UE_LOG(LogDemoGame, Error, TEXT("'%s' Failed to find an Enhanced Input component! This template is built to use the Enhanced Input system. If you intend to use the legacy system, then you will need to update this C++ file."), *GetNameSafe(this));
+	}
+
+	// Zero-config fallback so interaction works before IA_Interact is authored/assigned.
+	if (!InteractAction && PlayerInputComponent)
+	{
+		PlayerInputComponent->BindKey(EKeys::E, IE_Pressed, this, &ADemoGameCharacter::OnInteractPressed);
+	}
+}
+
+// ── NPC interaction / dialogue ───────────────────────────────────────────────
+
+UDialogueManagerSubsystem* ADemoGameCharacter::GetDialogueManager() const
+{
+	return GetWorld() ? GetWorld()->GetSubsystem<UDialogueManagerSubsystem>() : nullptr;
+}
+
+ANpcActorBase* ADemoGameCharacter::FindNearestNpc() const
+{
+	ANpcActorBase* Best = nullptr;
+	float BestDistSq = FMath::Square(InteractRadius);
+	const FVector Origin = GetActorLocation();
+	for (TActorIterator<ANpcActorBase> It(GetWorld()); It; ++It)
+	{
+		const float DistSq = FVector::DistSquared(Origin, It->GetActorLocation());
+		if (DistSq <= BestDistSq)
+		{
+			BestDistSq = DistSq;
+			Best = *It;
+		}
+	}
+	return Best;
+}
+
+void ADemoGameCharacter::OnInteractPressed()
+{
+	UDialogueManagerSubsystem* DM = GetDialogueManager();
+	if (!DM)
+	{
+		return;
+	}
+
+	if (DM->IsInDialogue())
+	{
+		CloseDialogue();
+		return;
+	}
+
+	if (ANpcActorBase* Npc = FindNearestNpc())
+	{
+		OpenDialogue(Npc);
+	}
+	else
+	{
+		UE_LOG(LogDemoGame, Verbose, TEXT("Interact: no NPC within %.0f cm."), InteractRadius);
+	}
+}
+
+void ADemoGameCharacter::OpenDialogue(ANpcActorBase* Npc)
+{
+	UDialogueManagerSubsystem* DM = GetDialogueManager();
+	if (!DM || !Npc)
+	{
+		return;
+	}
+
+	APlayerController* PC = Cast<APlayerController>(GetController());
+
+	// Create + show the widget BEFORE BeginDialogue so it is bound to the subsystem when
+	// OnDialogueBegun broadcasts (the widget binds the delegates in NativeConstruct).
+	if (PC && DialogueWidgetClass && !ActiveDialogueWidget)
+	{
+		ActiveDialogueWidget = CreateWidget<UDialogueWidgetBase>(PC, DialogueWidgetClass);
+		if (ActiveDialogueWidget)
+		{
+			ActiveDialogueWidget->AddToViewport();
+		}
+	}
+
+	// Clean up regardless of who ends the conversation.
+	DM->OnDialogueEnded.AddDynamic(this, &ADemoGameCharacter::HandleDialogueEnded);
+
+	if (PC)
+	{
+		FInputModeGameAndUI Mode;
+		if (ActiveDialogueWidget)
+		{
+			Mode.SetWidgetToFocus(ActiveDialogueWidget->TakeWidget());
+		}
+		PC->SetInputMode(Mode);
+		PC->SetShowMouseCursor(true);
+	}
+
+	DM->BeginDialogue(Npc);
+}
+
+void ADemoGameCharacter::CloseDialogue()
+{
+	if (UDialogueManagerSubsystem* DM = GetDialogueManager())
+	{
+		DM->EndDialogue();   // broadcasts OnDialogueEnded → HandleDialogueEnded does the teardown
+	}
+}
+
+void ADemoGameCharacter::HandleDialogueEnded()
+{
+	if (UDialogueManagerSubsystem* DM = GetDialogueManager())
+	{
+		DM->OnDialogueEnded.RemoveDynamic(this, &ADemoGameCharacter::HandleDialogueEnded);
+	}
+
+	if (ActiveDialogueWidget)
+	{
+		ActiveDialogueWidget->RemoveFromParent();
+		ActiveDialogueWidget = nullptr;
+	}
+
+	if (APlayerController* PC = Cast<APlayerController>(GetController()))
+	{
+		PC->SetInputMode(FInputModeGameOnly());
+		PC->SetShowMouseCursor(false);
 	}
 }
 
