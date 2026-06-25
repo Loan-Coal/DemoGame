@@ -116,6 +116,24 @@ TALK → LEARN (including distorted information) → ACT → OBSERVE CONSEQUENCE
 
 **Town name:** Thornfield. Use in all authored text (notice boards, biographies, fallback lines).
 
+### 7.1.1 Visual & lighting direction (per room)
+
+> A room is not its object list. Each scene is authored against five levers: **hero light** (the one
+> motivated source), **fill/contrast**, **color-temperature story**, **the focal point the dialogue
+> camera frames**, and **atmosphere** (haze/dust/smoke — this sells photoreal more than geometry does).
+> These descriptions are the art-direction contract for Phase 8; they override a bare object list.
+
+| Room | Hero light | Contrast / fill | Color story | Focal point | Atmosphere & one memorable detail |
+|------|-----------|-----------------|-------------|-------------|-----------------------------------|
+| **Tavern** | Hearth — warm, flickering, the Rembrandt key on Mira behind the bar. | **Cool window/door shafts** cutting across the warm interior — the warm-key/cool-fill split *is* the tavern look. Don't light it monochrome-orange. | Amber 2700–3200K key vs. cool ~6500K daylight slot. | Mira behind the bar, framed by hearthlight. | Volumetric haze with dust motes in the window shafts; clutter density (tankards, candle stubs, hanging utensils) so it doesn't read empty/game-y. |
+| **Back room** | **One motivated hard key** — a single lantern/candle near Lira. NOT a "dark post-process volume" (global darkening reads muddy and flat). | Deep falloff into near-black; chiaroscuro. This is the contrast room — the fence *in shadow*. | Single warm pool against cold dark. | Lira's hooded face half-lit at the booth. | Low haze catching the lantern cone; crates/barrels as silhouette mass, not detail. |
+| **Market** | **Low, warm late-afternoon sun (~15–25° above horizon)** — long raking shadows across the cobbles. | Cool sky-fill from the SkyLight; god-rays through awnings. | Golden-hour warmth matching the "Afternoon at the market square" cue. | Aldric at his stall; the notice board as a secondary read. | Light shafts + faint dust; **life proxies** (produce, baskets, cloth, sacks) since background NPCs are not MetaHumans — empty stalls read as a parking lot. Varied/wet cobbles for reflective break-up. |
+| **Barracks** | Directional sun, but **a different time/temperature than the market** (colder, later, or thin overcast) so the player feels they traveled. | Harder, flatter mil-discipline light; less god-ray softness. | Cooler, desaturated stone-and-steel palette. | Sorn at the gate arch / training area. | Banners, weapon racks, gravel-and-mud ground (vs. market cobbles). Shares the stone *material vocabulary* with the market, not the lighting. |
+
+**Cohesion rule (revised):** "one master grade" means **one shared LUT / tonemapper base + per-level
+post-process volumes** for local mood — not a single grade forced on every scene. A grade that flatters
+the warm tavern will crush the cool barracks, and vice versa. Share the base; tune locally.
+
 ### 7.2 The Propagating Event
 
 | Hop | NPC | Version | Distortion level |
@@ -221,6 +239,16 @@ One gate type per location. Never more than one active gate at a time within a s
 - All 5 NPCs require a `DialogueCamSocket`, including non-MetaHuman characters.
 - On dialogue close: blend back to player spring-arm camera (0.4 s).
 - The per-NPC socket position is a required deliverable in Phase 7. Add it to the Phase 7 checklist.
+
+### Portrait lighting + dialogue-cam DoF (the highest-leverage visual)
+- **This is a dialogue game — the dialogue close-up is where ~90% of visual judgment happens.** Scene
+  lighting alone leaves a MetaHuman flat and dead in close-up (no catchlights, no skin read).
+- Each NPC gets a **per-NPC dialogue key / eye light** (a small light parented to `DialogueCamSocket`,
+  or a rig that follows the dialogue cam) giving **catchlights in the eyes**, readable subsurface skin,
+  and a rim to separate the face from the background. Intensity/temperature tuned per NPC mood.
+- The dialogue camera uses **shallow depth-of-field** focused on the face — instantly cinematic *and* it
+  hides background greybox/low-detail props for free. Highest visual ROI per hour in the project.
+- Both are Phase 7 deliverables (see checklist). Asset/recipe research lives in ASSET_ACQUISITION Task F2.
 
 ### `facial_expression` → MetaHuman
 - Engine returns `{ "type": "neutral|happy|wary|fearful|angry|sad|...", "intensity": 0..100 }`.
@@ -482,6 +510,8 @@ Quixel photorealistic medieval throughout. MetaHuman characters are photorealist
 - [ ] Source and import Aldric humanoid actor from Fab → `BP_NPC_Aldric`
 - [ ] Source and import Old Henryk humanoid actor from Fab → `BP_NPC_Henryk`
 - [ ] Per-NPC `DialogueCamSocket` skeletal socket on each NPC actor: positioned to frame the face in close-up at the NPC's eye level. Required for all 5 NPCs.
+- [ ] **Per-NPC portrait light** parented to `DialogueCamSocket` (or a rig following the dialogue cam): catchlights in the eyes, readable subsurface skin, a separating rim. Tune intensity/temperature per NPC mood. Required for all 5 NPCs — a face lit only by ambient scene light reads flat/dead in close-up (see §9 Portrait lighting).
+- [ ] **Dialogue-cam depth of field:** shallow DoF focused on the face (focal distance on the head socket, aperture tuned for background fall-off). Cinematic + hides background greybox. Verify the face stays in focus through the 0.3 s blend-in.
 - [ ] `UDialogueComponent` camera blend:
   - [ ] On `StartDialogue`: `APlayerController::SetViewTargetWithBlend(NpcDialogueCam, 0.3f, VTBlend_Cubic)`
   - [ ] On dialogue close: blend back to player `USpringArmComponent` camera (0.4 s)
@@ -501,12 +531,13 @@ Quixel photorealistic medieval throughout. MetaHuman characters are photorealist
 **Independently demoable:** The tavern, market, and barracks look and feel like a real medieval world.  
 **Prerequisite:** Fab/Quixel asset packs acquired before starting.
 
-- [ ] Tavern interior (`L_Tavern`): hearth, bar, tables, candles, wooden beams. Source Quixel medieval interior kit. Baked lighting with dynamic candle lights as hero sources.
-- [ ] Tavern back room (`L_TavernBack`): low-light, crates, barrels. Dark post-process volume. Sourced from tavern kit.
-- [ ] Market square (`L_MarketSquare`): cobblestone, merchant stalls, notice board prop, awnings. Source Quixel outdoor medieval kit.
-- [ ] Guard barracks courtyard (`L_GuardBarracks`): stone walls, gate arch, training props (non-interactive decoration). Share stone textures with market.
+- [ ] Build every scene to the **§7.1.1 Visual & lighting direction** table — hero light, contrast, color story, focal point, atmosphere — not just the object list below.
+- [ ] Tavern interior (`L_Tavern`): hearth, bar, tables, candles, wooden beams. Source Quixel medieval interior kit. **Hearth is the hero key + cool window/door shafts for the warm/cool split** (§7.1.1). Add volumetric haze + dust motes in the shafts.
+- [ ] Tavern back room (`L_TavernBack`): crates, barrels. **One motivated hard lantern key on Lira with deep falloff — NOT a global "dark post-process volume"** (that reads muddy). Chiaroscuro: the fence in shadow.
+- [ ] Market square (`L_MarketSquare`): cobblestone, merchant stalls, notice board prop, awnings. Source Quixel outdoor medieval kit. **Low warm late-afternoon sun (~15–25°) for long raking shadows**; add life-proxy dressing (produce/baskets/cloth/sacks) so empty stalls don't read as a parking lot.
+- [ ] Guard barracks courtyard (`L_GuardBarracks`): stone walls, gate arch, training props (non-interactive decoration). Share stone *materials* with market, but **different time/temperature** (colder/later) + banners/weapon-racks/gravel ground so the player feels they traveled.
 - [ ] Notice board prop: `ANoticeBoard` actor placed in market and barracks. Physical examine trigger (E near prop → show current tier text).
-- [ ] Lighting: baked lightmaps for all static geometry. Dynamic lights only for candles, hearth, and torches. No Lumen in demo v1 (VRAM and performance overhead — reconsider post-demo).
+- [ ] Lighting (per **DEC-030**): **Lumen GI + reflections** for the hearth-lit interiors (warm bounced GI is the tavern's whole look and tolerates flickering fire). Outdoors: Sky Atmosphere + **one directional sun aligned to the HDRI's sun direction** (avoid double-shadows) + SkyLight + Exponential Height Fog + Volumetric Fog + light shafts. Enable **DLSS/TSR upscaling** to fund the Lumen cost on the 5070 Ti. Bake only if Phase 7 VRAM profiling forces it.
 - [ ] NavMesh volumes in each level (non-functional in demo v1, required for clean NPC placement without collision issues).
 - [ ] Level streaming performance check: transition between `L_Tavern` and `L_MarketSquare` must complete without a hitch longer than 1 frame at 60 fps target. Add a brief transition fade if needed.
 
