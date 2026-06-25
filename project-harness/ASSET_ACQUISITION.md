@@ -82,7 +82,13 @@ A session ranks candidates on these measurable axes (it cannot use "looks good" 
 6. **Poly / VRAM sanity** — note tri counts and texture memory; flag anything that threatens the 10 GB scene budget.
 7. **Completeness** — does it cover the need alone, or need supplementing (e.g. kit needs re-skinning)?
 
-Output a 1-line scored rationale per candidate against this rubric. Surface trade-offs, don't hide them.
+**Scoring scale (use verbatim so runs are comparable):** score each of the 7 axes **0 / 1 / 2**
+(0 = fails/unknown, 1 = acceptable, 2 = strong). License is a **gate, not just a score**: an unknown or
+unverifiable license caps the candidate's total at 0 regardless of other axes (reject it). Max raw score
+= 14. Report each candidate as `total/14 (per-axis: L# U# P# T# M# V# C#)` plus the 1-line rationale.
+A candidate with any **0 on License, UE5 compatibility, or Photoreal match** cannot be the recommended pick.
+
+Output the per-axis vector + total + a 1-line rationale per candidate. Surface trade-offs, don't hide them.
 
 ---
 
@@ -101,9 +107,21 @@ For the category it ran, a session produces **all** of:
    verbatim and click-exact, for anything account/editor-gated.
 4. **License manifest rows** — appended to `project-harness/ASSET_MANIFEST.md` (format in §5).
 
+### Definition of done (a run is acceptable only if ALL hold)
+- **Every cited URL was actually fetched this run and its license + UE-version text quoted from the page** —
+  never recalled from memory. An unfetchable URL is dropped, not guessed. (This is the #1 failure mode: a
+  shortlist of plausible-but-dead links and wrong licenses. No verification → the run is rejected.)
+- **≥ 2 options per asset** (target 2–4), each scored on the §2 0/14 scale with the per-axis vector.
+- Each option records: source URL (fetched), exact license string (quoted), UE5.x support (quoted/stated),
+  texture resolution / tri-count where applicable, pros, cons.
+- A **recommended pick per asset** with a one-line reason, caveated "human confirms the look."
+- All four §3 deliverables produced for the category. NC/CC-BY rows tagged `swap_for_commercial: YES`.
+- Explicit statement of what was *scripted* (left for the human to run) vs *only instructed*.
+
 A session must NOT:
 - **Run** a fetch script, or download any bundle / multi-GB pull. Scripts are *generated* and left for the human
   to run on approved items only.
+- **Cite a URL, license, or spec it did not fetch and read this run.** No memory-sourced links.
 - Drop unreviewed binaries straight into `Content/` (use staging).
 - Claim a manual-tier asset was acquired (it can only instruct).
 - Pick a single option when the user asked for **multiple** — always shortlist.
@@ -119,13 +137,25 @@ A session must NOT:
 | **Kenney.nl** (UI sounds, UI bits) | 🟢 SCRIPTED | script targets specific approved zip URLs | CC0 |
 | **Sonniss GDC Bundle** (SFX/ambience) | ⚪ AVOID | multi-GB bundle — too large; cherry-pick Freesound/Kenney instead | Royalty-free |
 | **Freesound** (one-off SFX) | 🟢 SCRIPTED* | API, individual clips (needs free API key in env `FREESOUND_API_KEY`) | CC0 / CC-BY (tag BY) |
-| **MetaHuman Creator** (the 5 faces) | 🔴 MANUAL | browser GUI at metahuman.unrealengine.com → Bridge import | Epic-ecosystem |
+| **MetaHuman** (the 5 faces) | 🔴 MANUAL | UE5.8 in-editor **MetaHuman plugin** and/or MetaHuman Creator → add to project. **Verify the exact 5.8 flow first (see currency note).** | Epic-ecosystem |
 | **Fab** (env kits, MetaHuman clothing) | 🔴 MANUAL | Epic login + in-editor Fab plugin "Add to Project" | per-asset (filter Free/NC) |
-| **Megascans** (surfaces, props) | 🔴 MANUAL | in-editor Fab/Bridge → download | Free for UE |
+| **Megascans** (surfaces, props) | 🔴 MANUAL | **now distributed via Fab** (free for UE); legacy Quixel Bridge is being sunset | Free for UE |
 | **Mixamo** (animations) | 🔴 MANUAL | Adobe login → FBX "Without Skin" → retarget | Free, commercial-OK |
 | **AI generation** (UI 2D art) | 🟡 HUMAN-RUN | local SDXL / Midjourney, human prompts | tool-dependent |
 
 \* If `FREESOUND_API_KEY` is absent, downgrade Freesound to MANUAL and note it.
+
+> **Pipeline-currency rule (do this first on any manual task):** the tool names above may be stale.
+> The Epic ecosystem moved Megascans into **Fab** and is sunsetting Quixel Bridge; **MetaHuman** is now an
+> **in-editor plugin** in UE5.6+ (not only a web creator). Before writing any HUMAN_VERIFICATION steps,
+> **fetch and confirm the current UE5.8 flow** (Epic/Fab/MetaHuman docs) and write steps against what you
+> verified today — do not transcribe this table's tool names on faith.
+
+### Download size / resolution ceilings (scripted tiers — hard caps)
+No multi-GB pulls (⚪). For scripted fetch scripts, cap resolution so disk and VRAM stay sane:
+- **HDRIs (Poly Haven):** **4K** for hero sky, 2K acceptable for distant backdrop. Never 8K/16K. Prefer `.hdr`/`.exr`.
+- **PBR materials (AmbientCG):** **2K** default; **4K only for a named hero surface**. Note format (JPG vs PNG).
+- **Per-file sanity:** flag any single file > ~200 MB; the script must list each file's expected size.
 
 All 🟢 SCRIPTED downloads are **human-gated**: the session writes the script targeting only approved shortlist
 items; the human runs it. No bulk bundles, ever (⚪ AVOID).
@@ -158,11 +188,26 @@ Each task is independently runnable. Suggested execution order matches the roadm
   current UE5.8 MetaHuman import gotchas and note them.
 - **Human gate:** the actual creation + import (browser + editor).
 
-### Task B — MetaHuman medieval clothing 🔴 MANUAL — **DO THIS BEFORE committing to faces**
-- **Need:** medieval garb that is MetaHuman-rigged (peasant/innkeeper, soldier, merchant, elderly).
-- **Session does:** shortlist Fab options (filter Free + NC) **and** Marvelous Designer / alternative routes;
-  rank by MetaHuman-rig compatibility. Flag this as the **go/no-go gate** for the whole photoreal cast.
-- **Human gate:** import + skin test on ONE MetaHuman. If it fails, the photoreal-character plan is at risk — escalate.
+### Task B — MetaHuman medieval clothing 🔴 MANUAL — **DO THIS BEFORE committing to faces** (the go/no-go gate)
+- **Need:** medieval garb that is **MetaHuman-rigged / MetaHuman-compatible**, one outfit per cast member
+  (all 5 are MetaHuman per DEC-031):
+  - **Mira** — innkeeper/tavern-keeper: apron over a simple kirtle/peasant dress, warm, working-class.
+  - **Captain Sorn** — soldier/guard: gambeson, light leather-or-mail, a guard tabard. Stoic, older.
+  - **Lira** — fence: hooded cloak / dark layered commoner garb for the dim back room.
+  - **Aldric** — wine merchant: a respectable middle-class doublet/tunic, slightly finer cloth.
+  - **Old Henryk** — elderly commoner: worn robe/tunic, the end-of-chain old man.
+- **Session does:** shortlist (per §2 0/14 scale, per §3 definition-of-done) **2–4 options per outfit** from:
+  (a) **Fab** (filter Free + NC; weight MetaHuman-rig/skeleton compatibility heavily), (b) MetaHuman-native
+  clothing where it exists, (c) alternative routes (Marvelous Designer garments + how they bind to the
+  MetaHuman body, CC0 garment scans). **Fetch and quote** each license + the rig/skeleton-compatibility claim
+  from the asset page — do not assume "Fab humanoid = MetaHuman-rigged" (most are UE-Mannequin-rigged and need
+  retarget/skin-wrap; call that out per option). Note per option: does it ship as a MetaHuman-groomable mesh,
+  a skeletal mesh needing retarget, or a static garment needing Mesh-to-MetaHuman / cloth-binding?
+- **This is the whole photoreal cast's go/no-go gate.** End the run with an explicit **GO / NO-GO / CONDITIONAL**
+  verdict: can all 5 outfits plausibly be MetaHuman-rigged from free/NC sources? If the answer is "only with
+  heavy manual retarget per outfit," say so loudly — that is a schedule/feasibility risk for the art plan.
+- **Human gate:** import + skin test on ONE MetaHuman (recommend Mira first). If it fails, the photoreal-character
+  plan is at risk — escalate before any faces are built.
 
 ### Task C — Animations (idle / talk / thinking) 🔴 MANUAL
 - **Need:** idle, talking-gesture idle, subtle "thinking" idle (LLM-wait loop, see roadmap §9 Dialogue UX).

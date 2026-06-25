@@ -254,7 +254,7 @@ One gate type per location. Never more than one active gate at a time within a s
 - Engine returns `{ "type": "neutral|happy|wary|fearful|angry|sad|...", "intensity": 0..100 }`.
 - Map to MetaHuman morph target blend weights via a lookup table: `EFacialExpressionType` → `(blend_target_name, weight_curve)`.
 - **Unknown types:** log the unrecognized type, fall back to `neutral`. Do not crash. Do not hard-fail on forward-compat values.
-- Non-MetaHuman characters (Aldric, Henryk): apply expression changes via blend space or animation Blueprint. Reduced fidelity is acceptable.
+- **All 5 NPCs are MetaHuman** (per DEC-031), so every NPC drives morph targets through the same lookup table — no reduced-fidelity expression path. Henryk uses the **elderly** MetaHuman preset.
 
 ### Degradation handling
 - If `degradation_level != "full"` in the response: log the value, continue normally. Do not surface to player in demo v1.
@@ -311,8 +311,8 @@ The golden path takes approximately 20 minutes.
 | 🔴 P2 | Tavern interior environment | Quixel Megascans / Fab medieval kit | Must match MetaHuman photorealism. Acquire kit before Phase 8. |
 | 🟡 P3 | Market square / courtyard | Quixel / Fab outdoor medieval | Outdoor kit; can reuse some tavern textures. |
 | 🟡 P3 | Guard barracks courtyard | Quixel / Fab | Simpler than tavern; share stone textures. |
-| 🟡 P3 | Aldric character | Fab — rigged medieval merchant | Non-MetaHuman humanoid actor. |
-| 🟡 P3 | Old Henryk character | Fab — rigged elderly merchant type | Non-MetaHuman humanoid actor. |
+| 🟡 P3 | MetaHuman: Aldric | MetaHuman Creator | Middle-aged merchant preset. Co-loads with Henryk in the market — see VRAM strategy. |
+| 🟡 P3 | MetaHuman: Old Henryk | MetaHuman Creator | **Elderly** preset. End of the gossip chain. |
 | 🟢 P4 | UI art: dialogue panel, journal, relationship meter, quest log | Design in-house | Wire-frame in Phase 4; art in Phase 9. |
 | 🟢 P4 | Audio: tavern ambience | Fab audio packs | Hearth, murmur, clink. |
 | 🟢 P4 | Audio: outdoor ambience | Fab audio packs | Market bustle, wind, distant drills. |
@@ -322,9 +322,10 @@ The golden path takes approximately 20 minutes.
 ### MetaHuman VRAM strategy
 - Mira (tavern main floor) and Lira (tavern back room) are in **separate sub-levels** (`L_Tavern` and `L_TavernBack`).
 - `L_TavernBack` streams in only when the player crosses the back-room threshold. Mira and Lira are never loaded simultaneously.
-- Sorn (barracks) is always a separate scene — no MetaHuman VRAM conflict.
-- Target: never more than 1 MetaHuman loaded at the same time in any scene. Profile before committing to the art pass.
-- **Fallback:** If VRAM profiling in Phase 7 shows pressure, drop Lira to a Marketplace humanoid character and refund the MetaHuman budget to environment quality.
+- Sorn (barracks) is always a separate scene — no MetaHuman co-load there.
+- **Market co-loads 2 MetaHumans** (Aldric + Henryk) — the one scene that exceeds a single MetaHuman. Build both at **Quality = Medium** with aggressive LOD; this is the priority VRAM-profile target in Phase 7.
+- Target: **≤ 2 MetaHumans co-loaded (market only), ≤ 1 everywhere else.** Profile before committing to the art pass.
+- **Fallback:** If Phase 7 profiling shows the market scene over 10 GB with 2 MetaHumans, drop Henryk (end-of-chain, least dialogue) to a Marketplace humanoid first; Lira second. Refund the budget to environment quality.
 
 ### Environment art direction
 Quixel photorealistic medieval throughout. MetaHuman characters are photorealistic — the environment must match or the style inconsistency is worse than a unified art style in either direction. Do not mix Quixel and stylized Fab assets in the same scene.
@@ -502,13 +503,13 @@ Quixel photorealistic medieval throughout. MetaHuman characters are photorealist
 ### Phase 7 — MetaHuman + Dialogue Camera
 **Goal:** Replace capsule NPCs with MetaHuman actors. Cinematic dialogue camera active.  
 **Independently demoable:** Initiating dialogue with Mira shows her MetaHuman face with engine-driven expressions.  
-**Prerequisite:** MetaHuman customization for Mira, Sorn, and Lira must be complete before starting this phase.
+**Prerequisite:** MetaHuman customization for all 5 NPCs (Mira, Sorn, Lira, Aldric, Henryk) complete before starting this phase. Mira/Sorn/Lira first (validated), then Aldric/Henryk (elderly preset for Henryk).
 
 - [ ] Import Mira MetaHuman → `BP_NPC_Mira` (extends `ANpcActor`)
 - [ ] Import Sorn MetaHuman → `BP_NPC_Sorn`
 - [ ] Import Lira MetaHuman → `BP_NPC_Lira`
-- [ ] Source and import Aldric humanoid actor from Fab → `BP_NPC_Aldric`
-- [ ] Source and import Old Henryk humanoid actor from Fab → `BP_NPC_Henryk`
+- [ ] Import Aldric MetaHuman (middle-aged preset) → `BP_NPC_Aldric`
+- [ ] Import Old Henryk MetaHuman (**elderly** preset) → `BP_NPC_Henryk`
 - [ ] Per-NPC `DialogueCamSocket` skeletal socket on each NPC actor: positioned to frame the face in close-up at the NPC's eye level. Required for all 5 NPCs.
 - [ ] **Per-NPC portrait light** parented to `DialogueCamSocket` (or a rig following the dialogue cam): catchlights in the eyes, readable subsurface skin, a separating rim. Tune intensity/temperature per NPC mood. Required for all 5 NPCs — a face lit only by ambient scene light reads flat/dead in close-up (see §9 Portrait lighting).
 - [ ] **Dialogue-cam depth of field:** shallow DoF focused on the face (focal distance on the head socket, aperture tuned for background fall-off). Cinematic + hides background greybox. Verify the face stays in focus through the 0.3 s blend-in.
@@ -520,7 +521,7 @@ Quixel photorealistic medieval throughout. MetaHuman characters are photorealist
   - [ ] Maps each expression type to a `(TargetName, WeightCurve)` pair
   - [ ] `ApplyExpression(USkeletalMeshComponent*, EFacialExpressionType, int32 Intensity)`: blends to target weight over 0.3 s
   - [ ] Unknown types log and apply `Neutral`
-- [ ] Non-MetaHuman characters (Aldric, Henryk): apply expression via Animation Blueprint state machine with simplified emotion states.
+- [ ] All 5 NPCs are MetaHuman (DEC-031) — Aldric and Henryk use the same morph-target lookup as the others; no simplified-emotion path.
 - [ ] VRAM profile: load `L_Tavern` with Mira in scene. Check GPU memory usage. Load `L_GuardBarracks` with Sorn. Confirm neither scene exceeds 10 GB VRAM. If Mira scene exceeds 10 GB, investigate and resolve before Lira MetaHuman import.
 - [ ] Verify: Mira and Lira are never in GPU memory simultaneously (confirm via Unreal memory stats or RenderDoc). If sub-level streaming causes them to co-load, add an explicit unload call on `L_TavernBack` when leaving the tavern.
 
