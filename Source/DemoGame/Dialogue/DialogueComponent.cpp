@@ -14,6 +14,9 @@
 #include "DemoGame.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
+#include "Camera/CameraComponent.h"
+#include "GameFramework/PlayerController.h"
+#include "GameFramework/SpringArmComponent.h"
 
 UDialogueComponent::UDialogueComponent()
 {
@@ -46,8 +49,48 @@ void UDialogueComponent::StartDialogue(APlayerController* PC)
         }
     }
 
+    BlendCameraToNpc(PC);
+
     UE_LOG(LogDemoGame, Log,
         TEXT("DialogueComponent: session started NpcId=%s"), *NpcId.ToString());
+}
+
+void UDialogueComponent::EndDialogue(APlayerController* PC)
+{
+    BlendCameraToPlayer(PC);
+}
+
+void UDialogueComponent::BlendCameraToNpc(APlayerController* PC)
+{
+    if (!PC || !GetOwner())
+    {
+        return;
+    }
+
+    // Find a UCameraComponent on the NPC actor (attached at DialogueCamSocket in the editor session).
+    UCameraComponent* NpcCam = GetOwner()->FindComponentByClass<UCameraComponent>();
+    if (!NpcCam)
+    {
+        return; // No cam yet (greybox stage) — skip blend; works with MetaHumans after Phase 7 import.
+    }
+
+    bCameraBlended = true;
+    PC->SetViewTargetWithBlend(GetOwner(), 0.3f, VTBlend_Cubic);
+}
+
+void UDialogueComponent::BlendCameraToPlayer(APlayerController* PC)
+{
+    if (!bCameraBlended || !PC)
+    {
+        return;
+    }
+    bCameraBlended = false;
+
+    // Blend back to the player pawn (which owns the spring arm camera).
+    if (APawn* PlayerPawn = PC->GetPawn())
+    {
+        PC->SetViewTargetWithBlend(PlayerPawn, 0.4f, VTBlend_Cubic);
+    }
 }
 
 void UDialogueComponent::SubmitMessage(const FString& PlayerMessage)

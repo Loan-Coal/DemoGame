@@ -125,6 +125,10 @@ private:
 	UPROPERTY()
 	TObjectPtr<class UDialogueWidgetBase> ActiveDialogueWidget;
 
+	/** The NPC whose dialogue is currently open — used to call EndDialogue on close. */
+	UPROPERTY()
+	TObjectPtr<class ANpcActorBase> ActiveNpc;
+
 	/** Persistent HUD widgets. (Names suffixed "Hud" to avoid colliding with BP variables.) */
 	UPROPERTY()
 	TObjectPtr<class URelationshipMeterWidget> RelationshipMeterHud;

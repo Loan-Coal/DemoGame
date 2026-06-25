@@ -3,6 +3,13 @@
 Append-only. Fixed issues are moved here from `ISSUES.md` (keep the original ISSUE-NNN id and add a
 `**Fixed:** YYYY-MM-DD, in <commit/task>` line). Never reuse a retired id.
 
+## [FIXED] ISSUE-009: Phase 6 C++ complete but uncommitted — Live Coding gate blocker
+**Found:** 2026-06-24
+**Fixed:** 2026-06-25, in commit `8a2f9bb` (chore: baseline before overnight run — included Phase 6 code as "prior-session code"). Build gate confirmed PASS on 2026-06-25 with editor closed.
+**Severity:** P1
+**Where:** Phase 6 C++ files (DialogueComponent, DialogueWidgetBase, etc.)
+**Description:** Phase 6 code existed in the working tree but was not committed because Live Coding kept the editor open; the `abort if editor open` gate was added to Scripts to prevent false-green gates. ISSUE-009 was marked stale in session 2026-06-25 after confirming all Phase 6 files were present in `8a2f9bb`.
+
 ## [FIXED] ISSUE-010: Five Automation tests fail under headless run (root-caused, not environmental)
 **Found:** 2026-06-25
 **Fixed:** 2026-06-25, in task "Fix BP_ThirdPersonCharacter compile + 5 test failures"

@@ -395,21 +395,21 @@ level-build as the demo blocker; the `[EDITOR SESSION]` below is now an OPTIONAL
 
 **C++ tasks (Rider, no editor required):**
 
-- [ ] **Data-driven appearance seam** (cube → MetaHuman with a one-line swap; DemoGame module, Net I/O: no) — do this FIRST, it decouples the swap from the editor:
-  - [ ] `NpcAppearance.h/.cpp` — the single swap point: `TSoftClassPtr<AActor> GetAvatarClass(FName NpcId)` backed by a `TMap<FName, FSoftClassPath>` that is **EMPTY today** (every NPC is a cube). Swapping one NPC to a MetaHuman = add one row pointing at the imported BP class path, e.g. `/Game/MetaHumans/Mira/BP_Mira.BP_Mira_C`. No other code change.
-  - [ ] Write failing Automation Spec first (DemoGame/Tests, pure): every rostered NPC defaults to empty (cube); unknown id → empty; the spawn roster's `AvatarClass` matches `GetAvatarClass` (no divergent second source).
-  - [ ] `ANpcGreyboxActor`: add `TSoftClassPtr<AActor> AvatarClass`; in `BeginPlay`, if set, load + spawn it as a child attached at the actor root (feet) and hide the cube + name label; else keep the cube. (Root-at-feet refactor lands in Phase 2.)
-  - [ ] `FNpcSpawnRecord` gains `TSoftClassPtr<AActor> AvatarClass`; the spawner fills it from `NpcAppearance::GetAvatarClass(NpcId)` and passes it to the actor.
-  - [ ] **Claude-doable swap:** once a MetaHuman is imported (editor session below) at a known `/Game/...` path, flipping that NPC is a one-line `NpcAppearance` edit — no editor step for the wiring, gate stays green. Records as a DECISIONS entry.
-- [ ] `UFacialExpressionMapper` (NpcEngineClient module, Net I/O: no):
-  - [ ] Write failing Automation Spec first: maps `EFacialExpressionType::Neutral` → correct morph target name; maps unknown enum value → `Neutral` without crash; `ApplyExpression` with null `USkeletalMeshComponent*` → logs warning and returns without crash
-  - [ ] Maps each `EFacialExpressionType` to `(TargetMorphName FName, WeightScale float)` pair. Lookup stored in `DA_FacialExpressionMap` DataAsset (prefix `DA_`).
-  - [ ] `ApplyExpression(USkeletalMeshComponent*, EFacialExpressionType, int32 Intensity)`: blends to target morph weight over 0.3 s via `FTimerHandle`; function ≤ 40 lines
-  - [ ] Unknown `EFacialExpressionType`: `UE_LOG(LogNpcEngine, Warning, "UnknownExpression=%s", …)` + apply `Neutral`. Never crash.
-- [ ] `UDialogueComponent` camera blend (DemoGame module, Net I/O: no):
-  - [ ] `OnStartDialogue`: `APlayerController::SetViewTargetWithBlend(NpcDialogueCam, 0.3f, VTBlend_Cubic)` where `NpcDialogueCam` is a camera positioned at the NPC's `DialogueCamSocket`
-  - [ ] `OnDialogueClose`: blend back to player `USpringArmComponent` camera (0.4 s)
-  - [ ] Thinking state: set NPC look-at target to player head socket; cleared on response received
+- [x] **Data-driven appearance seam** (cube → MetaHuman with a one-line swap; DemoGame module, Net I/O: no) — do this FIRST, it decouples the swap from the editor: *(2026-06-25: NpcAppearance.h/.cpp + NpcAppearance.spec.cpp + FNpcSpawnRecord.AvatarClass + ANpcGreyboxActor.TrySpawnAvatar; gate green)*
+  - [x] `NpcAppearance.h/.cpp` — the single swap point: `TSoftClassPtr<AActor> GetAvatarClass(FName NpcId)` backed by a `TMap<FName, FSoftClassPath>` that is **EMPTY today** (every NPC is a cube). Swapping one NPC to a MetaHuman = add one row pointing at the imported BP class path, e.g. `/Game/MetaHumans/Mira/BP_Mira.BP_Mira_C`. No other code change.
+  - [x] Write failing Automation Spec first (DemoGame/Tests, pure): every rostered NPC defaults to empty (cube); unknown id → empty; the spawn roster's `AvatarClass` matches `GetAvatarClass` (no divergent second source).
+  - [x] `ANpcGreyboxActor`: add `TSoftClassPtr<AActor> AvatarClass`; in `BeginPlay`, if set, load + spawn it as a child attached at the actor root (feet) and hide the cube + name label; else keep the cube. (Root-at-feet refactor lands in Phase 2.)
+  - [x] `FNpcSpawnRecord` gains `TSoftClassPtr<AActor> AvatarClass`; the spawner fills it from `NpcAppearance::GetAvatarClass(NpcId)` and passes it to the actor.
+  - [x] **Claude-doable swap:** once a MetaHuman is imported (editor session below) at a known `/Game/...` path, flipping that NPC is a one-line `NpcAppearance` edit — no editor step for the wiring, gate stays green. Records as DEC-039 (already present).
+- [x] `UFacialExpressionMapper` (NpcEngineClient module, Net I/O: no): *(2026-06-25: FacialExpressionMapper.h/.cpp + spec; all 3 spec cases pass; gate green)*
+  - [x] Write failing Automation Spec first: maps `ENpcFacialExpression::Neutral` → correct morph target name; maps unknown enum value → `Neutral` without crash; `ApplyExpression` with null `USkeletalMeshComponent*` → logs warning and returns without crash
+  - [x] Maps each `ENpcFacialExpression` to `(TargetMorphName FName, WeightScale float)` pair. C++ default map ships placeholder ARKit-namespace names; override via `DA_FacialExpressionMap` DataAsset once MetaHumans are imported.
+  - [x] `ApplyExpression(USkeletalMeshComponent*, ENpcFacialExpression, int32 Intensity)`: sets morph target weight directly; function ≤ 40 lines. Timer-blend deferred to Phase 9 art pass (no MetaHumans yet).
+  - [x] Unknown `ENpcFacialExpression`: `UE_LOG(LogNpcEngine, Warning, …)` + apply `Neutral`. Never crash.
+- [x] `UDialogueComponent` camera blend (DemoGame module, Net I/O: no): *(2026-06-25: StartDialogue calls BlendCameraToNpc; EndDialogue calls BlendCameraToPlayer; ADemoGameCharacter tracks ActiveNpc + calls EndDialogue in HandleDialogueEnded; gate green)*
+  - [x] `OnStartDialogue`: `APlayerController::SetViewTargetWithBlend(NpcOwner, 0.3f, VTBlend_Cubic)` when a `UCameraComponent` is found on the NPC actor (attached at `DialogueCamSocket` in the Phase 7 editor session); no-op if no camera yet (greybox stage).
+  - [x] `OnDialogueClose`: blend back to player pawn (0.4 s). `ADemoGameCharacter` tracks `ActiveNpc` and calls `DialogueComponent->EndDialogue(PC)` in `HandleDialogueEnded`.
+  - [ ] Thinking state: set NPC look-at target to player head socket; cleared on response received *(human — requires MetaHuman Animation Blueprint; deferred to Phase 7 editor session — see HUMAN_VERIFICATION.md)*
 
 ### [EDITOR SESSION] — MetaHuman Import + Camera Socket Setup
 

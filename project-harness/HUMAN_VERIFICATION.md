@@ -92,6 +92,55 @@ behaviour, not assets. Optional cleanup: delete the duplicate `Content/BP_NPC_Mi
 - [ ] <exact editor step copied from ROADMAP [EDITOR SESSION] block>
 -->
 
+## Phase 7 — MetaHuman + Dialogue Camera (editor session)
+
+**C++ status:** ✅ complete and committed. Phase 7 headless block done 2026-06-25:
+- `NpcAppearance.h/.cpp` — empty registry by default; one-line row = MetaHuman swap.
+- `NpcAppearance.spec.cpp` — 3 specs: rostered NPCs default to empty, unknown → empty, roster parity.
+- `FNpcSpawnRecord` gains `AvatarClass`; spawner fills from `NpcAppearance::GetAvatarClass`.
+- `ANpcGreyboxActor::TrySpawnAvatar()` — loads soft class, spawns child, hides cube + label.
+- `UFacialExpressionMapper` (NpcEngineClient) — spec + impl: maps `ENpcFacialExpression` → morph target name/weight; null mesh → warning; unknown → Neutral.
+- `UDialogueComponent::EndDialogue(PC)` + `BlendCameraToNpc/Player` — blends 0.3s in, 0.4s out.
+- `ADemoGameCharacter` tracks `ActiveNpc`; calls `EndDialogue` in `HandleDialogueEnded`.
+
+**Why these need the editor:** MetaHuman import, skeleton socket setup, and Animation Blueprint wiring all require the Unreal Editor; VRAM profiling requires PIE.
+
+### Instructions (copy from ROADMAP Phase 7 [EDITOR SESSION])
+
+**VRAM gate — complete before importing Lira:**
+1. Load `L_Tavern` with Mira MetaHuman placed (`BP_NPC_Mira`). Open `stat gpu`. Confirm VRAM < 10 GB.
+2. Load `L_GuardBarracks` with Sorn MetaHuman placed (`BP_NPC_Sorn`). Confirm VRAM < 10 GB.
+3. If either scene exceeds 10 GB: investigate (reduce texture pool, LOD settings, streaming). Record findings in DECISIONS.md before continuing. Do not import Lira until Mira scene is under budget.
+
+**MetaHuman setup (after VRAM gate passes):**
+4. Create `BP_NPC_Mira` (extends `ANpcActorBase`; prefix `BP_`): place Mira MetaHuman mesh. Set `NpcId` UPROPERTY to `mira_innkeeper` FName constant. Configure Animation Blueprint with looping thinking idle + neutral blend space.
+5. Create `BP_NPC_Sorn` (extends `ANpcActorBase`): set `NpcId` = captain_sorn constant.
+6. Create `BP_NPC_Lira` (extends `ANpcActorBase`): set `NpcId` = lira_fence constant. Place in `L_TavernBack` sub-level only.
+7. Aldric and Old Henryk: all-MetaHuman per DEC-031. Create `BP_NPC_Aldric` and `BP_NPC_Henryk`.
+
+**One-line swap for each NPC (after BP path is known):** Tell Claude the `/Game/...` path for each imported Blueprint → Claude adds one line to `NpcAppearance.cpp` per NPC → rebuild DemoGame → cube becomes MetaHuman. No other code or editor step required.
+
+**DialogueCamSocket — required for all 5 NPCs:**
+8. For each NPC skeleton, add a socket named exactly `DialogueCamSocket` positioned at eye level, facing outward. This is required for the camera blend to work.
+
+**Expression setup:**
+9. On each MetaHuman Animation Blueprint: add a morph target blend layer driven by `UFacialExpressionMapper` output. Wire `ENpcFacialExpression` → blend weights.
+
+**Thinking state look-at (deferred from C++ — requires AnimBP):**
+10. In each NPC's Animation Blueprint: add a "look-at" IK pass activated by a boolean `bThinking`. `UDialogueComponent` will set this flag when the LLM response is pending and clear it on response received. (The `bThinking` flag and its setter/broadcast will be added to `UDialogueComponent` in a future C++ pass once the AnimBP variable name is confirmed.)
+
+**Checklist (manual):**
+- [ ] Mira MetaHuman renders in `L_Tavern`; VRAM stat < 10 GB
+- [ ] Sorn MetaHuman renders in `L_GuardBarracks`; VRAM stat < 10 GB
+- [ ] Lira MetaHuman renders in `L_TavernBack`; Mira and Lira never simultaneously in GPU memory
+- [ ] Aldric and Old Henryk humanoids placed in `L_MarketSquare`
+- [ ] All 5 NPC actors have `DialogueCamSocket` added to their skeletons
+- [ ] PIE: approach Mira → press E → camera blends smoothly (0.3 s) toward `DialogueCamSocket`
+- [ ] PIE: close dialogue → camera blends back to player (0.4 s)
+- [ ] `BP_NPC_Mira` expression layer changes when `ApplyExpression` is called
+
+---
+
 ## Phase 2 — Greybox World (PIE verification)
 
 **C++ status:** ✅ complete and committed (`feat(phase2): GreyboxWorldSubsystem + spawner layout wiring`).

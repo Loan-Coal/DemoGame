@@ -244,6 +244,8 @@ void ADemoGameCharacter::OpenDialogue(ANpcActorBase* Npc)
 		PC->SetShowMouseCursor(true);
 	}
 
+	ActiveNpc = Npc;
+
 	// Phase 4: delegate session start to the NPC's DialogueComponent so it owns session state.
 	// StartDialogue calls DM->BeginDialogue internally; fallback to direct call if component absent.
 	if (Npc->DialogueComponent)
@@ -271,13 +273,22 @@ void ADemoGameCharacter::HandleDialogueEnded()
 		DM->OnDialogueEnded.RemoveDynamic(this, &ADemoGameCharacter::HandleDialogueEnded);
 	}
 
+	APlayerController* PC = Cast<APlayerController>(GetController());
+
+	// Blend camera back to the player before tearing down the widget.
+	if (ActiveNpc && ActiveNpc->DialogueComponent && PC)
+	{
+		ActiveNpc->DialogueComponent->EndDialogue(PC);
+	}
+	ActiveNpc = nullptr;
+
 	if (ActiveDialogueWidget)
 	{
 		ActiveDialogueWidget->RemoveFromParent();
 		ActiveDialogueWidget = nullptr;
 	}
 
-	if (APlayerController* PC = Cast<APlayerController>(GetController()))
+	if (PC)
 	{
 		PC->SetInputMode(FInputModeGameOnly());
 		PC->SetShowMouseCursor(false);

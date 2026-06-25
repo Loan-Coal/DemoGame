@@ -62,11 +62,19 @@ public:
     /**
      * Begin a dialogue session with this NPC.
      * Clears AccumulatedTrust and SessionId; calls UDialogueManagerSubsystem::BeginDialogue.
+     * Camera blends to DialogueCamComponent (if present) via SetViewTargetWithBlend.
      * Input mode is managed by ADemoGameCharacter — not by this component.
      * Fallback: no-op and logs a warning if owner has no NpcId set.
      */
     UFUNCTION(BlueprintCallable, Category = "Dialogue")
     void StartDialogue(APlayerController* PC);
+
+    /**
+     * End the dialogue session and blend the camera back to the player's spring arm.
+     * Safe to call even if no camera blend was initiated (no-op).
+     */
+    UFUNCTION(BlueprintCallable, Category = "Dialogue")
+    void EndDialogue(APlayerController* PC);
 
     /**
      * Submit a player message. Validates non-empty and ≤ NpcEngine::MaxPlayerMessageChars.
@@ -113,6 +121,10 @@ public:
 
 private:
     FString SessionId;
+    bool bCameraBlended = false;
+
+    void BlendCameraToNpc(APlayerController* PC);
+    void BlendCameraToPlayer(APlayerController* PC);
 
     UPROPERTY()
     TScriptInterface<INpcDialogueService> DialogueService;

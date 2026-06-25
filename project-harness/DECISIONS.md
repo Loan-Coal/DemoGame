@@ -3,6 +3,12 @@
 Append-only. Each entry: context, decision, rationale. Never edit a past decision — supersede it with a
 new entry that references the old one.
 
+## DEC-041: Phase 7 camera blend — no-op when no UCameraComponent; thinking look-at deferred to editor AnimBP
+**Date:** 2026-06-25
+**Context:** `UDialogueComponent::BlendCameraToNpc` was written to find a `UCameraComponent` named/attached at `DialogueCamSocket` on the NPC actor. Greybox NPCs are static mesh cubes — they have no UCameraComponent. The Phase 7 ROADMAP item for "thinking state look-at" requires AnimBP bool wiring, which is an editor task.
+**Decision:** (1) `BlendCameraToNpc` silently no-ops if no UCameraComponent is found on the NPC actor. `bCameraBlended` remains false; `BlendCameraToPlayer` is therefore also a no-op in that branch. The socket and camera component are wired in the editor during the Phase 7 `[EDITOR SESSION]` when MetaHuman BPs are created. (2) The `bThinking` AnimBP wiring is left as a `[ ] (human — deferred)` item in the ROADMAP. The flag and setter will be added to `UDialogueComponent` in a future C++ pass once the AnimBP variable name (`bThinking`) is confirmed in-editor. This avoids dead C++ code with no corresponding AnimBP receiver.
+**Rationale:** Both choices avoid guessing editor-side asset paths/names in headless code. The no-op camera path is correct today (greybox) and automatically activates once the MetaHuman BP has a UCameraComponent at the socket. The AnimBP variable name must be confirmed in the editor before the C++ setter is written, per the CLAUDE.md rule against hardcoded asset identifiers in gameplay.
+
 ## DEC-040: GreyboxWorldSubsystem — floor slab only, perimeter walls deferred
 **Date:** 2026-06-25
 **Context:** Phase 2 ROADMAP specified "spawn a floor slab + a light perimeter wall + one ANpcLocation per layout entry." The wall spawning is cosmetic — its only purpose is to give visual bounds to each location region. The ThirdPerson template level (`Lvl_ThirdPerson`) already provides a large floor that covers the entire greybox path. Spawning overlapping walls would add visual noise without gameplay benefit.
