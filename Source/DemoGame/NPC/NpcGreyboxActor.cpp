@@ -52,4 +52,40 @@ void ANpcGreyboxActor::BeginPlay()
 
     const FString Label = DisplayName.IsEmpty() ? NpcId.ToString() : DisplayName;
     NameLabel->SetText(FText::FromString(Label));
+
+    if (!AvatarClass.IsNull())
+    {
+        TrySpawnAvatar();
+    }
+}
+
+void ANpcGreyboxActor::TrySpawnAvatar()
+{
+    UClass* LoadedClass = AvatarClass.LoadSynchronous();
+    if (!LoadedClass)
+    {
+        UE_LOG(LogDemoGame, Warning,
+            TEXT("NpcGreyboxActor: failed to load AvatarClass for NpcId=%s"), *NpcId.ToString());
+        return;
+    }
+
+    FActorSpawnParameters Params;
+    Params.Owner = this;
+    Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+    AActor* Avatar = GetWorld()->SpawnActor<AActor>(LoadedClass, FTransform::Identity, Params);
+    if (!Avatar)
+    {
+        UE_LOG(LogDemoGame, Warning,
+            TEXT("NpcGreyboxActor: SpawnActor failed for NpcId=%s"), *NpcId.ToString());
+        return;
+    }
+
+    Avatar->AttachToActor(this, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
+    BodyMesh->SetVisibility(false, /*bPropagateToChildren*/ true);
+    NameLabel->SetVisibility(false);
+
+    UE_LOG(LogDemoGame, Log,
+        TEXT("NpcGreyboxActor: avatar spawned NpcId=%s Class=%s"),
+        *NpcId.ToString(), *LoadedClass->GetName());
 }

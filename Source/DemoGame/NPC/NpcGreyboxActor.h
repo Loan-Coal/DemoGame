@@ -11,6 +11,7 @@
 
 class UStaticMeshComponent;
 class UTextRenderComponent;
+class AActor;
 
 /**
  * Greybox NPC: a visible cube with the NPC's DisplayName floating above it.
@@ -27,6 +28,14 @@ class DEMOGAME_API ANpcGreyboxActor : public ANpcActorBase
 public:
     ANpcGreyboxActor();
 
+    /**
+     * Optional avatar Blueprint class. When non-empty, BeginPlay spawns this class as a child
+     * actor attached at the actor root (feet) and hides the cube + name label.
+     * Filled by UNpcSpawnerSubsystem from NpcAppearance::GetAvatarClass — empty = keep cube.
+     */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "NPC|Appearance")
+    TSoftClassPtr<AActor> AvatarClass;
+
 protected:
     virtual void BeginPlay() override;
 
@@ -37,4 +46,8 @@ protected:
     /** Floating name label so the player can identify each NPC at a glance. */
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "NPC|Greybox")
     TObjectPtr<UTextRenderComponent> NameLabel;
+
+private:
+    /** Synchronously loads AvatarClass, spawns the actor as a child, hides cube + label. */
+    void TrySpawnAvatar();
 };

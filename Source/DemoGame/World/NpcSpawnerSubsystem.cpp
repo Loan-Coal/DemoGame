@@ -5,6 +5,7 @@
 // rules-allow-file: hardcoded_npc_id  (this IS the C++ spawn-roster data table; see DEC on UI/data-in-C++)
 
 #include "NpcSpawnerSubsystem.h"
+#include "NPC/NpcAppearance.h"
 #include "GreyboxWorldSubsystem.h"
 #include "NpcGreyboxActor.h"
 #include "NoticeBoard.h"
@@ -37,14 +38,29 @@ TArray<FNpcSpawnRecord> UNpcSpawnerSubsystem::GetRoster()
     // The C++ data source for slice NPCs. npc_id values are stable engine keys — never rename.
     // Offset is an intra-location spread (relative to GetLocationCenter) so NPCs stand apart
     // within their trigger region. Z is always 0 — ground Z is derived from a floor trace.
+    // AvatarClass comes from NpcAppearance::GetAvatarClass — empty means cube stand-in.
     // (OCP: replace this table with a DataAsset / seed-JSON loader in a later slice.)
-    return {
-        { TEXT("mira_innkeeper"), TEXT("Mira"),        TEXT("loc_tavern"),         FVector(  0.f, -100.f, 0.f) },
-        { TEXT("lira_fence"),     TEXT("Lira"),        TEXT("loc_tavern"),         FVector(  0.f,  100.f, 0.f) },
-        { TEXT("aldric_merchant"),TEXT("Aldric"),      TEXT("loc_market_square"),  FVector(-100.f,  -50.f, 0.f) },
-        { TEXT("captain_sorn"),   TEXT("Captain Sorn"),TEXT("loc_guard_barracks"), FVector(  0.f,    0.f, 0.f) },
-        { TEXT("old_henryk"),     TEXT("Old Henryk"),  TEXT("loc_market_square"),  FVector( 100.f,   50.f, 0.f) },
+    struct FRosterRow { const TCHAR* NpcId; const TCHAR* DisplayName; const TCHAR* LocationId; FVector Offset; };
+    static const FRosterRow Rows[] = {
+        { TEXT("mira_innkeeper"),  TEXT("Mira"),         TEXT("loc_tavern"),         FVector(  0.f, -100.f, 0.f) },
+        { TEXT("lira_fence"),      TEXT("Lira"),         TEXT("loc_tavern"),         FVector(  0.f,  100.f, 0.f) },
+        { TEXT("aldric_merchant"), TEXT("Aldric"),       TEXT("loc_market_square"),  FVector(-100.f,  -50.f, 0.f) },
+        { TEXT("captain_sorn"),    TEXT("Captain Sorn"), TEXT("loc_guard_barracks"), FVector(  0.f,    0.f, 0.f) },
+        { TEXT("old_henryk"),      TEXT("Old Henryk"),   TEXT("loc_market_square"),  FVector( 100.f,   50.f, 0.f) },
     };
+
+    TArray<FNpcSpawnRecord> Roster;
+    for (const FRosterRow& Row : Rows)
+    {
+        FNpcSpawnRecord Record;
+        Record.NpcId       = FName(Row.NpcId);
+        Record.DisplayName = Row.DisplayName;
+        Record.LocationId  = Row.LocationId;
+        Record.Offset      = Row.Offset;
+        Record.AvatarClass = NpcAppearance::GetAvatarClass(Record.NpcId);
+        Roster.Add(Record);
+    }
+    return Roster;
 }
 
 void UNpcSpawnerSubsystem::OnWorldBeginPlay(UWorld& InWorld)
@@ -130,6 +146,7 @@ void UNpcSpawnerSubsystem::SpawnNpc(UWorld& World, const FNpcSpawnRecord& Record
     Npc->NpcId       = Record.NpcId;
     Npc->DisplayName = Record.DisplayName;
     Npc->LocationId  = Record.LocationId;
+    Npc->AvatarClass = Record.AvatarClass;
     Npc->FinishSpawning(Transform);
 }
 

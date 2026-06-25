@@ -9,11 +9,14 @@
 #include "Subsystems/WorldSubsystem.h"
 #include "NpcSpawnerSubsystem.generated.h"
 
+class AActor;
 class ANpcActorBase;
 
 /**
  * One NPC's spawn record. Identity (snake_case npc_id) matches the engine seed; Offset is relative
- * to the player start so NPCs are always near the player in whatever level is loaded.
+ * to the location center so NPCs stand apart within their trigger region.
+ *
+ * AvatarClass is filled from NpcAppearance::GetAvatarClass at roster build time. Empty = cube greybox.
  */
 USTRUCT()
 struct FNpcSpawnRecord
@@ -24,6 +27,9 @@ struct FNpcSpawnRecord
     FString DisplayName;
     FString LocationId;
     FVector Offset = FVector::ZeroVector;
+
+    /** Soft class pointer for the avatar Blueprint. Empty = use ANpcGreyboxActor cube stand-in. */
+    TSoftClassPtr<AActor> AvatarClass;
 };
 
 /**

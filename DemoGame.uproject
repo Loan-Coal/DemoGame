@@ -38,7 +38,12 @@
 		},
 		{
 			"Name": "MetaHuman",
-			"Enabled": true
+			"Enabled": true,
+			"SupportedTargetPlatforms": [
+				"Win64",
+				"Linux",
+				"Mac"
+			]
 		}
 	]
 }
