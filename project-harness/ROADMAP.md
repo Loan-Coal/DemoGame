@@ -128,16 +128,16 @@ Tavern → Market → Barracks and exercise dialogue/quests/gossip **without any
 art levels become an optional Phase 8 pass that overrides this. **This block replaces the editor
 level-build as the demo blocker; the `[EDITOR SESSION]` below is now an OPTIONAL human tail.**
 
-- [ ] `UGreyboxWorldSubsystem` (World Subsystem, DemoGame module, Net I/O: no) — single source of spatial truth:
-  - [ ] Static `GetLayout()` returns a table of `FGreyboxLocation { FName Id; FVector CenterOffset; float Radius; bool bFiresTick; }` for the 4 canonical locations (`loc_tavern`, `loc_tavern_back` with `bFiresTick=false`, `loc_market_square`, `loc_guard_barracks`), spread along +X so the player walks Tavern → Market → Barracks in order; the back room sits off the main path.
-  - [ ] Write failing Automation Spec first (DemoGame/Tests, pure — no world): layout contains the 4 canonical locations; only `loc_tavern_back` has `bFiresTick=false`; every location radius > 0; **every NPC `LocationId` in `UNpcSpawnerSubsystem::GetRoster()` maps to a layout entry** (roster ↔ layout consistency).
-  - [ ] `ShouldCreateSubsystem` gated to game worlds; `OnWorldBeginPlay` → `EnsureBuilt()` (idempotent `bBuilt` guard) — mirror the `UNpcAutoSeedSubsystem` lifecycle pattern (DEC-035).
-  - [ ] `EnsureBuilt()`: resolve a base (PlayerStart, fallback world origin); spawn a floor slab (scaled `/Engine/BasicShapes/Cube`), a light perimeter wall, and one `ANpcLocation` per layout entry (set `LocationId`, `bFiresTick`, trigger radius). **Skip** a location if an `ANpcLocation` with that id already exists in the loaded level (forward-compat with authored levels).
-  - [ ] `GetLocationCenter(FName)` returns the absolute ground point for a location (builds first if needed).
-- [ ] Wire `UNpcSpawnerSubsystem` to the layout so NPCs stand inside their own location trigger:
-  - [ ] Before spawning, `EnsureBuilt()` the greybox subsystem; place each NPC at `GetLocationCenter(LocationId)` + a small intra-location spread (shrink the roster `Offset`s to spreads). Fall back to the player-start base if the greybox subsystem is absent.
-  - [ ] Move the cube's `+CubeHalfHeight` onto the actor's relative mesh offset so the actor root sits at the feet (prep for the Phase 7 avatar swap); spawn the root at the traced floor.
-- [ ] **Human tail (log to HUMAN_VERIFICATION.md):** PIE — press Play (engine up → auto-seed) → walk Tavern → Market → Barracks; ticks logged, no double-tick on re-entry; all 5 NPCs reachable.
+- [x] `UGreyboxWorldSubsystem` (World Subsystem, DemoGame module, Net I/O: no) — single source of spatial truth: *(2026-06-25: GreyboxWorldSubsystem.h/.cpp; Automation Spec GreyboxWorld.spec.cpp; gate green)*
+  - [x] Static `GetLayout()` returns a table of `FGreyboxLocation { FName Id; FVector CenterOffset; float Radius; bool bFiresTick; }` for the 4 canonical locations (`loc_tavern`, `loc_tavern_back` with `bFiresTick=false`, `loc_market_square`, `loc_guard_barracks`), spread along +X so the player walks Tavern → Market → Barracks in order; the back room sits off the main path.
+  - [x] Write failing Automation Spec first (DemoGame/Tests, pure — no world): layout contains the 4 canonical locations; only `loc_tavern_back` has `bFiresTick=false`; every location radius > 0; **every NPC `LocationId` in `UNpcSpawnerSubsystem::GetRoster()` maps to a layout entry** (roster ↔ layout consistency).
+  - [x] `ShouldCreateSubsystem` gated to game worlds; `OnWorldBeginPlay` → `EnsureBuilt()` (idempotent `bBuilt` guard) — mirror the `UNpcAutoSeedSubsystem` lifecycle pattern (DEC-035).
+  - [x] `EnsureBuilt()`: resolve a base (PlayerStart, fallback world origin); spawn a floor slab (scaled `/Engine/BasicShapes/Cube`), and one `ANpcLocation` per layout entry (set `LocationId`, `bFiresTick`, trigger radius). **Skip** a location if an `ANpcLocation` with that id already exists in the loaded level (forward-compat with authored levels). *(Perimeter walls deferred — ThirdPerson template provides the floor; triggers are the functional core; see DEC-040.)*
+  - [x] `GetLocationCenter(FName)` returns the absolute ground point for a location (builds first if needed).
+- [x] Wire `UNpcSpawnerSubsystem` to the layout so NPCs stand inside their own location trigger: *(2026-06-25)*
+  - [x] Before spawning, `EnsureBuilt()` the greybox subsystem; place each NPC at `GetLocationCenter(LocationId)` + a small intra-location spread (shrink the roster `Offset`s to spreads). Fall back to the player-start base if the greybox subsystem is absent.
+  - [x] Move the cube's `+CubeHalfHeight` onto the actor's relative mesh offset so the actor root sits at the feet (prep for the Phase 7 avatar swap); spawn the root at the traced floor.
+- [ ] (human — see HUMAN_VERIFICATION.md) **Human tail:** PIE — press Play (engine up → auto-seed) → walk Tavern → Market → Barracks; ticks logged, no double-tick on re-entry; all 5 NPCs reachable.
 
 ### [EDITOR SESSION] — Real Art Levels + Travel Triggers *(OPTIONAL human tail — deferred to Phase 8; the C++ greybox above makes the slice playable now)*
 

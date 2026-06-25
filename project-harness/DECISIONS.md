@@ -3,6 +3,12 @@
 Append-only. Each entry: context, decision, rationale. Never edit a past decision — supersede it with a
 new entry that references the old one.
 
+## DEC-040: GreyboxWorldSubsystem — floor slab only, perimeter walls deferred
+**Date:** 2026-06-25
+**Context:** Phase 2 ROADMAP specified "spawn a floor slab + a light perimeter wall + one ANpcLocation per layout entry." The wall spawning is cosmetic — its only purpose is to give visual bounds to each location region. The ThirdPerson template level (`Lvl_ThirdPerson`) already provides a large floor that covers the entire greybox path. Spawning overlapping walls would add visual noise without gameplay benefit.
+**Decision:** `EnsureBuilt()` spawns the floor slab and the four `ANpcLocation` trigger actors (the functional core). Perimeter wall spawning is deferred. The implementation note in ROADMAP marks this deviation. If the project ever uses a blank/minimal level instead of the template, walls can be added then.
+**Rationale:** Walls are cosmetic scaffolding. The functional requirement (location triggers for clock ticks + NPC placement inside triggers) is fully satisfied without them. Minimal code is easier to remove when real art levels arrive (Phase 8).
+
 ## DEC-039: Data-driven NPC appearance seam — cube by default, one-line MetaHuman swap (`NpcAppearance`)
 **Date:** 2026-06-25
 **Context:** The cube → MetaHuman swap was code surgery: `UNpcSpawnerSubsystem::SpawnNpc` hardcodes `ANpcGreyboxActor::StaticClass()` and `ANpcGreyboxActor` hardcodes the engine cube mesh. The user wants a demoable cube build ASAP that stays trivial to re-skin once MetaHuman assets are imported, and wants Claude to be able to do the swap.

@@ -92,6 +92,23 @@ behaviour, not assets. Optional cleanup: delete the duplicate `Content/BP_NPC_Mi
 - [ ] <exact editor step copied from ROADMAP [EDITOR SESSION] block>
 -->
 
+## Phase 2 — Greybox World (PIE verification)
+
+**C++ status:** ✅ complete and committed (`feat(phase2): GreyboxWorldSubsystem + spawner layout wiring`).
+**Why these need a human:** PIE play-test verifies that the procedural floor + triggers + NPC spawning work correctly at runtime with the live engine. Cannot be verified headlessly.
+
+- [ ] **Greybox world smoke test** (press Play in `Lvl_ThirdPerson` or whatever your default map is; engine does NOT need to be running for this step):
+  - [ ] Output Log shows `GreyboxWorldSubsystem: built at base=...` and `NpcSpawnerSubsystem: spawned 5 NPCs at base=...`
+  - [ ] Five cube NPCs are visible in the level (labelled Mira, Lira, Aldric, Captain Sorn, Old Henryk)
+  - [ ] Walk from PlayerStart toward +X: Output Log shows `Tick=1 Location=loc_tavern` when entering the tavern trigger region (within ~5 m of PlayerStart)
+  - [ ] Continue along +X past 15 m: `Tick=2 Location=loc_market_square` logged on entry
+  - [ ] Continue along +X past 30 m: `Tick=3 Location=loc_guard_barracks` logged on entry
+  - [ ] Walk back to tavern: no double-tick (re-entry guard: same location → no additional tick)
+  - [ ] Walk to the back room position (about 10 m in -Y from PlayerStart): no tick fires (`bFiresTick=false`)
+  - [ ] Press E near any NPC → dialogue widget opens
+
+---
+
 ## Phase 6 — Gossip Chain + Rumor Journal (editor session)
 
 **C++ status:** ✅ complete and committed (`feat(phase6): GossipCacheSubsystem + FNpcStateSnapshot + RumorJournalWidget + NoticeBoard + Sorn quest gate`).

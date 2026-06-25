@@ -5,6 +5,7 @@
 // rules-allow-file: hardcoded_npc_id  (this IS the C++ spawn-roster data table; see DEC on UI/data-in-C++)
 
 #include "NpcSpawnerSubsystem.h"
+#include "GreyboxWorldSubsystem.h"
 #include "NpcGreyboxActor.h"
 #include "NoticeBoard.h"
 #include "DemoGame.h"
@@ -15,14 +16,6 @@
 
 namespace
 {
-    // Spawn offsets are relative to the player start: +X forward, +Y right. Z is derived per-actor
-    // from a downward ground trace (see ResolveGroundZ); the roster's Z components are ignored.
-    constexpr float SpawnZ = 0.f;
-
-    // Half-height of the engine 100cm cube (pivot-centered): the cube's bottom rests on the floor
-    // when the actor origin is placed this far above the traced ground.
-    constexpr float CubeHalfHeight = 50.f;
-
     // Vertical search range above/below the fallback Z for the ground trace.
     constexpr float GroundTraceHalfRange = 1000.f;
 
@@ -42,13 +35,15 @@ namespace
 TArray<FNpcSpawnRecord> UNpcSpawnerSubsystem::GetRoster()
 {
     // The C++ data source for slice NPCs. npc_id values are stable engine keys — never rename.
-    // (OCP: a later slice can replace this table with a DataAsset / seed-JSON loader.)
+    // Offset is an intra-location spread (relative to GetLocationCenter) so NPCs stand apart
+    // within their trigger region. Z is always 0 — ground Z is derived from a floor trace.
+    // (OCP: replace this table with a DataAsset / seed-JSON loader in a later slice.)
     return {
-        { TEXT("mira_innkeeper"), TEXT("Mira"),        TEXT("loc_tavern"),         FVector(400.f, -300.f, SpawnZ) },
-        { TEXT("lira_fence"),     TEXT("Lira"),        TEXT("loc_tavern"),         FVector(400.f,  300.f, SpawnZ) },
-        { TEXT("aldric_merchant"),TEXT("Aldric"),      TEXT("loc_market_square"),  FVector(700.f, -150.f, SpawnZ) },
-        { TEXT("captain_sorn"),   TEXT("Captain Sorn"),TEXT("loc_guard_barracks"), FVector(700.f,  150.f, SpawnZ) },
-        { TEXT("old_henryk"),     TEXT("Old Henryk"),  TEXT("loc_market_square"),  FVector(1000.f, 0.f,   SpawnZ) },
+        { TEXT("mira_innkeeper"), TEXT("Mira"),        TEXT("loc_tavern"),         FVector(  0.f, -100.f, 0.f) },
+        { TEXT("lira_fence"),     TEXT("Lira"),        TEXT("loc_tavern"),         FVector(  0.f,  100.f, 0.f) },
+        { TEXT("aldric_merchant"),TEXT("Aldric"),      TEXT("loc_market_square"),  FVector(-100.f,  -50.f, 0.f) },
+        { TEXT("captain_sorn"),   TEXT("Captain Sorn"),TEXT("loc_guard_barracks"), FVector(  0.f,    0.f, 0.f) },
+        { TEXT("old_henryk"),     TEXT("Old Henryk"),  TEXT("loc_market_square"),  FVector( 100.f,   50.f, 0.f) },
     };
 }
 
@@ -61,6 +56,12 @@ void UNpcSpawnerSubsystem::OnWorldBeginPlay(UWorld& InWorld)
         return;
     }
     bSpawned = true;
+
+    // Build the greybox world first so GetLocationCenter() is valid when SpawnNpc runs.
+    if (UGreyboxWorldSubsystem* Greybox = InWorld.GetSubsystem<UGreyboxWorldSubsystem>())
+    {
+        Greybox->EnsureBuilt();
+    }
 
     const FVector Base = ResolveSpawnBase(InWorld);
 
@@ -103,10 +104,17 @@ float UNpcSpawnerSubsystem::ResolveGroundZ(UWorld& World, const FVector& ProbeXY
 
 void UNpcSpawnerSubsystem::SpawnNpc(UWorld& World, const FNpcSpawnRecord& Record, const FVector& Base)
 {
-    // Derive Z from the floor so the cube's bottom face rests on the ground (XY from the roster).
-    const FVector ProbeXY = Base + Record.Offset;
-    const float GroundZ = ResolveGroundZ(World, ProbeXY, Base.Z);
-    const FVector Location(ProbeXY.X, ProbeXY.Y, GroundZ + CubeHalfHeight);
+    // XY: greybox location center + intra-location spread; fall back to Base + offset.
+    // Z: derived from a downward floor trace — actor root sits at the feet (cube mesh is offset
+    // upward inside ANpcGreyboxActor so the pivot is at ground level, not cube centre).
+    FVector SpawnXY = Base + Record.Offset;
+    if (UGreyboxWorldSubsystem* Greybox = World.GetSubsystem<UGreyboxWorldSubsystem>())
+    {
+        SpawnXY = Greybox->GetLocationCenter(FName(*Record.LocationId)) + Record.Offset;
+    }
+
+    const float GroundZ = ResolveGroundZ(World, SpawnXY, Base.Z);
+    const FVector Location(SpawnXY.X, SpawnXY.Y, GroundZ);  // root at feet
     const FTransform Transform(FRotator::ZeroRotator, Location);
 
     ANpcGreyboxActor* Npc = World.SpawnActorDeferred<ANpcGreyboxActor>(
@@ -128,7 +136,7 @@ void UNpcSpawnerSubsystem::SpawnNpc(UWorld& World, const FNpcSpawnRecord& Record
 void UNpcSpawnerSubsystem::SpawnNoticeBoards(UWorld& World, const FVector& Base)
 {
     const TArray<FText> Tiers = MakeNoticeTiers();
-    const FVector Offsets[] = { FVector(300.f, -550.f, SpawnZ), FVector(300.f, 550.f, SpawnZ) };
+    const FVector Offsets[] = { FVector(300.f, -550.f, 0.f), FVector(300.f, 550.f, 0.f) };
 
     for (const FVector& Offset : Offsets)
     {
