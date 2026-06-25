@@ -6,6 +6,7 @@
 #include "DialogueWidgetBase.h"
 #include "DialogueManager.h"
 #include "MemoryBadgeLookupAsset.h"
+#include "MemoryBadgeDefaults.h"
 #include "NpcActorBase.h"
 #include "NpcEngineTypes.h"
 #include "DemoGame.h"
@@ -306,10 +307,16 @@ void UDialogueWidgetBase::OnMemoriesRecalledHandler(FName /*NpcId*/, TArray<FStr
     }
 
     // Show the first memory badge (greybox: one badge at a time).
+    // Lookup priority: DA_MemoryBadgeLookup DataAsset → C++ stubs (MemoryBadgeDefaults) → raw ID.
     FText BadgeText;
+    const FName MemoryKey(*Memories[0]);
     if (MemoryBadgeLookup)
     {
-        BadgeText = MemoryBadgeLookup->GetBadgeText(FName(*Memories[0]));
+        BadgeText = MemoryBadgeLookup->GetBadgeText(MemoryKey);
+    }
+    if (BadgeText.IsEmpty())
+    {
+        BadgeText = MemoryBadgeDefaults::GetBadgeText(MemoryKey);
     }
     if (BadgeText.IsEmpty())
     {

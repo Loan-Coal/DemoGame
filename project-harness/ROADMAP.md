@@ -191,7 +191,7 @@ level-build as the demo blocker; the `[EDITOR SESSION]` below is now an OPTIONAL
   - [x] **Event node**: `northern_war_begins` with authored source/hop-1/hop-2 distortion texts per §7.2 verbatim
   - [x] **Edges**: `LOCATED_AT` (all 5 NPCs), `MEMBER_OF` (Lira → guild, Sorn → guard), `KNOWS_ABOUT` (Sorn → northern_war_begins), `RELATES_TO` (neutral stubs)
   - [x] **Quest nodes**: `find_wine_merchant`, `deliver_amulet`, `aldric_confession`, `patrol_duty`, `captain_report`, `missing_goods`, `fence_confrontation` — each with objective text and chain links per §7.6
-  - [ ] **Memory badge lookup stub**: `TMap<FName, FText>` entries for all memory node IDs in the seed. *(deferred: DataAsset work; wired in Phase 4/10)*
+  - [x] **Memory badge lookup stub**: `TMap<FName, FText>` entries for all memory node IDs in the seed. *(2026-06-25: MemoryBadgeDefaults.h — C++ stub map covering all 20 seed node IDs; wired into DialogueWidgetBase as DataAsset → C++ stubs → raw ID fallback chain. Phase 10 replaces stubs with final authored text.)*
   - [x] Note: Slice 2 NPC deep inner-life deferred to Phase 5 via admin endpoints. DEC-018 records the decision and seeding path. *(2026-06-24)*
 - [x] Implement `UNpcWorldSeeder` in NpcEngineClient module (Net I/O: yes): *(2026-06-24)*
   - [x] Reads `DemoWorld_v1.json` using `FFileHelper`; JSON parsing stays in NpcEngineClient
