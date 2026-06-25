@@ -336,3 +336,69 @@ Do this BEFORE purchasing/importing assets for the other 4 NPCs. If Mira's skin 
 
 - [ ] Full 5-NPC outfit pass: repeat skin test for each NPC once Mira is confirmed
 - [ ] Mark `- [x]` here when all 5 pass the skin test
+
+---
+
+## Phase 10 — Content Polish (live-engine + playtest tasks)
+
+**C++ status:** ✅ headless authoring complete 2026-06-25 (notice board texts, memory badge lookup, fallback canned lines).
+**Why these need a human:** Live engine seeding, gossip chain verification, and final playtest all require the Docker NPC Engine on `localhost:8000` and a live player session.
+
+### 1. Author `aldric_confession` dialogue context (live engine seeding)
+
+Seed Aldric's belief and secret to the NPC Engine via admin endpoint. Run this **after** `NpcEngine.SeedWorld` completes (so the `aldric_merchant` Character node exists).
+
+```powershell
+$h = @{ Authorization = "Bearer $env:NPC_ENGINE_API_KEY"; "Content-Type" = "application/json" }
+
+# Seed belief
+Invoke-RestMethod -Method Post "http://localhost:8000/v1/admin/memories/aldric_merchant" `
+  -Headers $h -Body (@{
+    memory_type = "belief"; key = "amulet_origin"
+    content = "This amulet — I took it as trade debt in Riverwheel from a soldier passing through. He needed coin quickly; I didn't ask why. That was weeks ago. Now I have guardsmen coming to my stall asking what I know. I understand it now: that man deserted his post. He fled the northern garrison before the skirmish was reported, and this is what he left behind. I'm holding his evidence. That's what they want."
+  } | ConvertTo-Json)
+
+# Seed secret
+Invoke-RestMethod -Method Post "http://localhost:8000/v1/admin/memories/aldric_merchant" `
+  -Headers $h -Body (@{
+    memory_type = "secret"; key = "amulet_truth"
+    content = "The amulet is evidence of a desertion from the northern garrison. The soldier who owned it sold it to Aldric to fund his flight from the northern pass before the skirmish the guards are suppressing."
+  } | ConvertTo-Json)
+```
+
+**Note:** Verify the exact endpoint path against `GET http://localhost:8000/openapi.json` before running — the admin memory endpoint shape is not in `docs/openapi.json`. If the path differs, update DECISIONS.md.
+
+- [ ] Aldric belief seeded (`amulet_origin`)
+- [ ] Aldric secret seeded (`amulet_truth`)
+- [ ] Confirm via Aldric dialogue: after trust gate 1 with Mira fires, speaking to Aldric should surface these memories
+
+### 2. Final gossip chain verification (live LLM, 5 runs)
+
+- [ ] Run full golden path 5 times from a fresh seed: Tavern (speak with Mira, ≥2 exchanges) → Barracks (build trust with Sorn; he shares war information) → Tavern (tick fires) → Market (speak with Old Henryk)
+- [ ] In all 5 runs: Henryk's dialogue response must contain the distorted war account (recognizable as a corruption of what Sorn said)
+- [ ] If any run fails: tune `gossipy` and `credulity` values in `Seed/DemoWorld_v1.json` and re-run `NpcEngine.SeedWorld`. Re-run the failing path before incrementing the count.
+- [ ] Do NOT advance to Phase 7 completion until 5/5 pass
+
+### 3. Final distortion review (live LLM)
+
+- [ ] Play as a player who spoke with Sorn, then talk to Old Henryk
+- [ ] Confirm: Henryk's account is recognizably a corruption of Sorn's (a neutral observer can identify the connection)
+- [ ] If not: exaggerate the authored distortion text in `Seed/DemoWorld_v1.json` (Henryk's hop-2 entry under `northern_war_begins`) and re-run `NpcEngine.SeedWorld`
+
+### 4. DemoWorld_v1.json reconciliation (live engine)
+
+- [ ] Run `Invoke-RestMethod http://localhost:8000/openapi.json` and compare field names for each node type against `Seed/DemoWorld_v1.json` and `docs/ENGINE_CONTRACT.md`
+- [ ] Any property shape drift → patch the seed and re-run `NpcEngine.SeedWorld`
+- [ ] Record any drift as a DEC entry in `DECISIONS.md`
+
+### 5. Naive user playtest
+
+- [ ] One person who has not seen or worked on the demo plays without guidance
+- [ ] An observer notes every moment of confusion (particularly "what do I do next?" moments)
+- [ ] Fix every blocker before marking this phase complete
+- [ ] Playtest confirms the player reaches beat 15 (gossip reveal) within 25 minutes
+
+### 6. Acceptance criteria checklist
+
+- [ ] Run the full §14 acceptance criteria checklist (see ROADMAP.md Acceptance Criteria section)
+- [ ] All items must pass. No partial credit.

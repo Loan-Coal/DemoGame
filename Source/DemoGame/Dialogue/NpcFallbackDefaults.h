@@ -24,15 +24,15 @@ namespace NpcFallbackDefaults
     {
         static const TMap<FName, FText> Lines = {
             { FName(TEXT("mira_innkeeper")),
-                FText::FromString(TEXT("…Mira seems distracted and doesn't respond.")) },
+                FText::FromString(TEXT("…Mira polishes the bar cloth and meets your eyes for just a moment. \"Not now,\" she says quietly.")) },
             { FName(TEXT("lira_fence")),
-                FText::FromString(TEXT("…Lira shrugs and looks away.")) },
+                FText::FromString(TEXT("…Lira's gaze cuts to the doorway. She says nothing.")) },
             { FName(TEXT("aldric_merchant")),
-                FText::FromString(TEXT("…Aldric glances away nervously and doesn't reply.")) },
+                FText::FromString(TEXT("…Aldric busies himself stacking crates, eyes averted. He's not in a talking mood.")) },
             { FName(TEXT("captain_sorn")),
-                FText::FromString(TEXT("…Sorn nods crisply but says nothing more.")) },
+                FText::FromString(TEXT("…Sorn fixes you with a steady look and says nothing more.")) },
             { FName(TEXT("old_henryk")),
-                FText::FromString(TEXT("…Henryk squints at you and mutters something under his breath.")) },
+                FText::FromString(TEXT("…Henryk cups his ear and shakes his head slowly. Whatever he heard, he's keeping it to himself.")) },
         };
 
         const FText* Found = Lines.Find(NpcId);
