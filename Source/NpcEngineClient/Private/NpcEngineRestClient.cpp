@@ -373,7 +373,7 @@ void UNpcEngineRestClient::QuestChoose(
 
 void UNpcEngineRestClient::GetNpcState(
     const FString& NpcId,
-    TFunction<void(const FString&)> OnResult,
+    TFunction<void(const FNpcStateSnapshot&)> OnResult,
     FOnNpcEngineError OnError)
 {
     const FString Url = BuildUrl(FString::Printf(
@@ -384,21 +384,27 @@ void UNpcEngineRestClient::GetNpcState(
         {
             if (Status != 200)
             {
+                UE_LOG(LogNpcEngine, Warning,
+                    TEXT("GetNpcState failed Status=%d"), Status);
                 OnError.ExecuteIfBound(FString::Printf(
                     TEXT("GetNpcState failed (status %d)."), Status));
+                OnResult(FNpcStateSnapshot{});
                 return;
             }
             TSharedPtr<FJsonObject> Data;
-            if (FNpcEngineJsonUtils::UnwrapEnvelopeData(ResponseBody, Data))
+            if (!FNpcEngineJsonUtils::UnwrapEnvelopeData(ResponseBody, Data))
             {
-                FString DataStr;
-                TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&DataStr);
-                FJsonSerializer::Serialize(Data.ToSharedRef(), Writer);
-                OnResult(DataStr);
-            }
-            else
-            {
+                UE_LOG(LogNpcEngine, Warning, TEXT("GetNpcState: envelope unwrap failed."));
                 OnError.ExecuteIfBound(TEXT("GetNpcState: failed to unwrap envelope."));
+                OnResult(FNpcStateSnapshot{});
+                return;
             }
+            FNpcStateSnapshot Snap;
+            if (!FNpcEngineJsonUtils::ParseNpcStateSnapshot(Data, Snap))
+            {
+                UE_LOG(LogNpcEngine, Warning, TEXT("GetNpcState: parse failed."));
+                OnError.ExecuteIfBound(TEXT("GetNpcState: snapshot parse failed."));
+            }
+            OnResult(Snap);
         });
 }

@@ -243,3 +243,68 @@ struct NPCENGINECLIENT_API FNpcDialogueResponse
     UPROPERTY(BlueprintReadOnly, Category = "NpcEngine")
     bool bIsFallback = false;
 };
+
+// ── NPC state snapshot (GET /v1/npc/{npc_id}/state) ──────────────────────────
+
+/** One entry from the NPC's relations array. Mirrors the relations sub-object. */
+USTRUCT(BlueprintType)
+struct NPCENGINECLIENT_API FNpcRelationEntry
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly, Category = "NpcEngine", meta=(JsonName="target_id"))
+    FString TargetId;
+
+    UPROPERTY(BlueprintReadOnly, Category = "NpcEngine", meta=(JsonName="trust"))
+    int32 Trust = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "NpcEngine", meta=(JsonName="fear"))
+    int32 Fear = 0;
+
+    UPROPERTY(BlueprintReadOnly, Category = "NpcEngine", meta=(JsonName="affection"))
+    int32 Affection = 0;
+};
+
+/** One entry from the NPC's events array. knowledge_state tracks gossip propagation. */
+USTRUCT(BlueprintType)
+struct NPCENGINECLIENT_API FNpcEventEntry
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly, Category = "NpcEngine", meta=(JsonName="event_id"))
+    FString EventId;
+
+    /** "heard", "knows", "distorted", etc. Empty string if the NPC doesn't know. */
+    UPROPERTY(BlueprintReadOnly, Category = "NpcEngine", meta=(JsonName="knowledge_state"))
+    FString KnowledgeState;
+
+    UPROPERTY(BlueprintReadOnly, Category = "NpcEngine", meta=(JsonName="hop_count"))
+    int32 HopCount = 0;
+};
+
+/**
+ * Parsed .data from GET /v1/npc/{npc_id}/state (OkEnvelope shape B).
+ * All parsing is done inside NpcEngineClient; only this typed struct crosses the module boundary.
+ * bValid = false when the HTTP call failed or the parse failed.
+ */
+USTRUCT(BlueprintType)
+struct NPCENGINECLIENT_API FNpcStateSnapshot
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly, Category = "NpcEngine")
+    FString NpcId;
+
+    UPROPERTY(BlueprintReadOnly, Category = "NpcEngine")
+    FString Name;
+
+    UPROPERTY(BlueprintReadOnly, Category = "NpcEngine")
+    TArray<FNpcRelationEntry> Relations;
+
+    UPROPERTY(BlueprintReadOnly, Category = "NpcEngine")
+    TArray<FNpcEventEntry> Events;
+
+    /** False when the HTTP call failed or the JSON envelope was malformed. */
+    UPROPERTY(BlueprintReadOnly, Category = "NpcEngine")
+    bool bValid = false;
+};

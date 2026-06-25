@@ -7,7 +7,55 @@
 #include "DialogueManager.h"
 #include "NpcActorBase.h"
 #include "DemoGame.h"
+#include "UiStyle.h"
+#include "Blueprint/WidgetTree.h"
 #include "Components/TextBlock.h"
+#include "Components/Border.h"
+#include "Components/VerticalBox.h"
+#include "Components/VerticalBoxSlot.h"
+#include "Components/HorizontalBox.h"
+#include "Components/HorizontalBoxSlot.h"
+
+TSharedRef<SWidget> URelationshipMeterWidget::RebuildWidget()
+{
+    if (WidgetTree && !WidgetTree->RootWidget)
+    {
+        BuildDefaultTree();
+    }
+    return Super::RebuildWidget();
+}
+
+void URelationshipMeterWidget::BuildDefaultTree()
+{
+    UBorder* Root = DemoUi::MakeBackdrop(*WidgetTree, /*bDim*/false, HAlign_Left, VAlign_Top);
+    UBorder* Card = DemoUi::MakePanel(*WidgetTree, DemoUi::Panel, DemoUi::PadRow);
+    Root->SetContent(Card);
+
+    UVerticalBox* Box = WidgetTree->ConstructWidget<UVerticalBox>();
+    Card->SetContent(Box);
+
+    auto MakeRow = [&](const FString& Caption, FName ValueName) -> UTextBlock*
+    {
+        UHorizontalBox* Row = WidgetTree->ConstructWidget<UHorizontalBox>();
+        UTextBlock* Label = DemoUi::MakeText(*WidgetTree, FText::FromString(Caption),
+            DemoUi::FontSmall, DemoUi::TextMuted);
+        UTextBlock* Value = DemoUi::MakeText(*WidgetTree, FText::FromString(TEXT("+0")),
+            DemoUi::FontSmall, DemoUi::TextAccent, ETextJustify::Right, ValueName);
+        if (UHorizontalBoxSlot* LabelSlot = Row->AddChildToHorizontalBox(Label))
+        {
+            LabelSlot->SetPadding(FMargin(0.f, 0.f, DemoUi::PadRow, 0.f));
+        }
+        Row->AddChildToHorizontalBox(Value);
+        Box->AddChildToVerticalBox(Row);
+        return Value;
+    };
+
+    TrustText     = MakeRow(TEXT("Trust"),     TEXT("TrustText"));
+    FearText      = MakeRow(TEXT("Fear"),      TEXT("FearText"));
+    AffectionText = MakeRow(TEXT("Affection"), TEXT("AffectionText"));
+
+    WidgetTree->RootWidget = Root;
+}
 
 void URelationshipMeterWidget::NativeConstruct()
 {

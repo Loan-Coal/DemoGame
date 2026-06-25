@@ -23,14 +23,18 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnQuestDeclined, FName, QuestId);
  *
  * Usage: set PendingQuestId before showing; bind AcceptButton/DeclineButton in WBP_QuestConfirm.
  * OnQuestAccepted fires → caller invokes UQuestSubsystem::ActivateQuest.
+ *
+ * Layout: a legible default tree is built in C++ when no designer layout is present; an authored
+ * WBP overrides it automatically.
  */
-UCLASS(Abstract)
+UCLASS()
 class DEMOGAME_API UQuestConfirmWidget : public UUserWidget
 {
     GENERATED_BODY()
 
 public:
     virtual void NativeConstruct() override;
+    virtual TSharedRef<SWidget> RebuildWidget() override;
 
     /**
      * Prime the widget before displaying.
@@ -59,6 +63,9 @@ protected:
     TObjectPtr<UButton> DeclineButton;
 
 private:
+    /** Build the legible default tree when no designer layout exists. */
+    void BuildDefaultTree();
+
     FName PendingQuestId;
 
     UFUNCTION()

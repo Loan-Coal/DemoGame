@@ -6,6 +6,7 @@
 #include "NpcWorldSubsystem.h"
 #include "NpcEngineServiceSubsystem.h"
 #include "NpcEngineTypes.h"
+#include "QuestSubsystem.h"
 #include "DemoGame.h"
 #include "Engine/GameInstance.h"
 
@@ -68,6 +69,26 @@ void UNpcWorldSubsystem::NotifyRelationshipUpdated(FName InNpcId, int32 TrustDel
             TEXT("TavernBack gate fired NpcId=%s AccumulatedTrust=%d Threshold=%d"),
             *InNpcId.ToString(), Accumulated, NpcEngine::TrustGate2Mira);
         OnTavernBackUnlocked.Broadcast();
+    }
+
+    if (!bSornQuestFired
+        && InNpcId == NpcId::CaptainSorn
+        && Accumulated >= NpcEngine::TrustGateSornQuest)
+    {
+        bSornQuestFired = true;
+        UE_LOG(LogDemoGame, Log,
+            TEXT("Sorn quest gate fired NpcId=%s AccumulatedTrust=%d Threshold=%d"),
+            *InNpcId.ToString(), Accumulated, NpcEngine::TrustGateSornQuest);
+
+        if (UQuestSubsystem* QS = GetWorld() ? GetWorld()->GetSubsystem<UQuestSubsystem>() : nullptr)
+        {
+            QS->ActivateQuest(QuestId::PatrolDuty);
+        }
+        else
+        {
+            UE_LOG(LogDemoGame, Warning,
+                TEXT("NpcWorldSubsystem: QuestSubsystem unavailable — PatrolDuty not activated."));
+        }
     }
 }
 

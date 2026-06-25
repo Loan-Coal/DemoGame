@@ -18,6 +18,9 @@
 #include "DialogueComponent.h"
 #include "DialogueManager.h"
 #include "DialogueWidgetBase.h"
+#include "RelationshipMeterWidget.h"
+#include "QuestLogWidget.h"
+#include "RumorJournalWidget.h"
 #include "DemoGame.h"
 
 ADemoGameCharacter::ADemoGameCharacter()
@@ -54,8 +57,68 @@ ADemoGameCharacter::ADemoGameCharacter()
 	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
 	FollowCamera->bUsePawnControlRotation = false;
 
-	// Note: The skeletal mesh and anim blueprint references on the Mesh component (inherited from Character) 
+	// Note: The skeletal mesh and anim blueprint references on the Mesh component (inherited from Character)
 	// are set in the derived blueprint asset named ThirdPersonCharacter (to avoid direct content references in C++)
+
+	// Default UI to the C++ base widgets so everything works with zero editor setup.
+	// A Blueprint subclass (BP_ThirdPersonCharacter) may override any of these with a WBP for v2 art.
+	DialogueWidgetClass     = UDialogueWidgetBase::StaticClass();
+	RelationshipMeterClass  = URelationshipMeterWidget::StaticClass();
+	QuestLogClass           = UQuestLogWidget::StaticClass();
+	RumorJournalClass       = URumorJournalWidget::StaticClass();
+}
+
+void ADemoGameCharacter::BeginPlay()
+{
+	Super::BeginPlay();
+	MountHud();
+}
+
+void ADemoGameCharacter::MountHud()
+{
+	APlayerController* PC = Cast<APlayerController>(GetController());
+	if (!PC)
+	{
+		return;
+	}
+
+	if (RelationshipMeterClass && !RelationshipMeterHud)
+	{
+		RelationshipMeterHud = CreateWidget<URelationshipMeterWidget>(PC, RelationshipMeterClass);
+		if (RelationshipMeterHud)
+		{
+			RelationshipMeterHud->AddToViewport();
+		}
+	}
+
+	if (QuestLogClass && !QuestLogHud)
+	{
+		QuestLogHud = CreateWidget<UQuestLogWidget>(PC, QuestLogClass);
+		if (QuestLogHud)
+		{
+			QuestLogHud->AddToViewport();
+		}
+	}
+}
+
+void ADemoGameCharacter::ToggleJournal()
+{
+	if (JournalHud)
+	{
+		JournalHud->RemoveFromParent();
+		JournalHud = nullptr;
+		return;
+	}
+
+	APlayerController* PC = Cast<APlayerController>(GetController());
+	if (PC && RumorJournalClass)
+	{
+		JournalHud = CreateWidget<URumorJournalWidget>(PC, RumorJournalClass);
+		if (JournalHud)
+		{
+			JournalHud->AddToViewport(/*ZOrder*/10);
+		}
+	}
 }
 
 void ADemoGameCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -89,6 +152,12 @@ void ADemoGameCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputC
 	if (!InteractAction && PlayerInputComponent)
 	{
 		PlayerInputComponent->BindKey(EKeys::E, IE_Pressed, this, &ADemoGameCharacter::OnInteractPressed);
+	}
+
+	// Zero-config Rumor Journal toggle (Tab) — works without authoring an input action.
+	if (PlayerInputComponent)
+	{
+		PlayerInputComponent->BindKey(EKeys::Tab, IE_Pressed, this, &ADemoGameCharacter::ToggleJournal);
 	}
 }
 

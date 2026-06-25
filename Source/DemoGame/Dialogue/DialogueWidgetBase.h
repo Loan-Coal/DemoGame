@@ -10,6 +10,7 @@
 #include "DialogueWidgetBase.generated.h"
 
 class ANpcActorBase;
+class UButton;
 class UEditableText;
 class UMemoryBadgeLookupAsset;
 class UScrollBox;
@@ -28,8 +29,11 @@ class UTextBlock;
  *   6. EndDialogue fires → widget hides.
  *
  * Does NOT: manage HTTP, parse JSON, hold session state, or change input mode.
+ *
+ * Layout: a legible default tree (solid bottom panel, scrolling history, input row + Send) is
+ * built in C++ when no designer layout is present; an authored WBP overrides it automatically.
  */
-UCLASS(Abstract)
+UCLASS()
 class DEMOGAME_API UDialogueWidgetBase : public UUserWidget
 {
     GENERATED_BODY()
@@ -39,6 +43,7 @@ public:
 
     virtual void NativeConstruct() override;
     virtual void NativeDestruct() override;
+    virtual TSharedRef<SWidget> RebuildWidget() override;
 
     // ── Input handling ───────────────────────────────────────────────────────
 
@@ -96,9 +101,25 @@ protected:
     UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
     TObjectPtr<UTextBlock> MemoriesBadge;
 
+    /** Send button (created by the C++ default layout; designer layout may omit it). */
+    UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
+    TObjectPtr<UButton> SendButton;
+
 private:
+    /** Build the legible default tree when no designer layout exists. */
+    void BuildDefaultTree();
+
+    UFUNCTION()
+    void OnSendClicked();
+
+    UFUNCTION()
+    void OnInputCommitted(const FText& Text, ETextCommit::Type CommitMethod);
+
     void LockInput();
     void UnlockInput();
+
+    /** Append one line to the scrolling history, separated from any prior text. */
+    void AppendHistory(const FString& Line);
 
     UFUNCTION()
     void OnNpcSpoke(const FString& Response, const FString& DisplayName);

@@ -19,8 +19,11 @@ class UTextBlock;
  *
  * Does NOT: parse JSON, hold session state beyond per-session totals, or call INpcDialogueService.
  * Dependencies injected: none — reads from UDialogueManagerSubsystem via GetWorld()->GetSubsystem.
+ *
+ * Layout: a legible default HUD panel is built in C++ when no designer layout is present; an
+ * authored WBP overrides it automatically.
  */
-UCLASS(Abstract)
+UCLASS()
 class DEMOGAME_API URelationshipMeterWidget : public UUserWidget
 {
     GENERATED_BODY()
@@ -28,6 +31,7 @@ class DEMOGAME_API URelationshipMeterWidget : public UUserWidget
 public:
     virtual void NativeConstruct() override;
     virtual void NativeDestruct() override;
+    virtual TSharedRef<SWidget> RebuildWidget() override;
 
     /** Reset accumulated totals (call when a new dialogue session begins). */
     UFUNCTION(BlueprintCallable, Category = "Relationship")
@@ -65,6 +69,9 @@ protected:
 
 private:
     void UpdateDisplay();
+
+    /** Build the legible default HUD panel when no designer layout exists. */
+    void BuildDefaultTree();
 
     UFUNCTION()
     void OnRelationshipChanged(FName NpcId, FNpcRelationDeltas Deltas);

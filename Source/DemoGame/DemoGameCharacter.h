@@ -61,6 +61,18 @@ protected:
 	UPROPERTY(EditAnywhere, Category="NPC|Dialogue")
 	float InteractRadius = 250.f;
 
+	/** Relationship meter HUD widget. Defaults to the C++ base; override with a WBP for v2 art. */
+	UPROPERTY(EditAnywhere, Category="NPC|HUD")
+	TSubclassOf<class URelationshipMeterWidget> RelationshipMeterClass;
+
+	/** Quest log HUD widget. Defaults to the C++ base; override with a WBP for v2 art. */
+	UPROPERTY(EditAnywhere, Category="NPC|HUD")
+	TSubclassOf<class UQuestLogWidget> QuestLogClass;
+
+	/** Rumor journal widget toggled with Tab. Defaults to the C++ base; override with a WBP for v2 art. */
+	UPROPERTY(EditAnywhere, Category="NPC|HUD")
+	TSubclassOf<class URumorJournalWidget> RumorJournalClass;
+
 public:
 
 	/** Constructor */
@@ -68,8 +80,16 @@ public:
 
 protected:
 
+	virtual void BeginPlay() override;
+
 	/** Initialize input action bindings */
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+
+	/** Create + add the always-on HUD widgets (relationship meter, quest log) to the viewport. */
+	void MountHud();
+
+	/** Toggle the Rumor Journal overlay open/closed (Tab key). */
+	void ToggleJournal();
 
 protected:
 
@@ -104,6 +124,17 @@ private:
 	/** The live dialogue widget while a conversation is open. */
 	UPROPERTY()
 	TObjectPtr<class UDialogueWidgetBase> ActiveDialogueWidget;
+
+	/** Persistent HUD widgets. (Names suffixed "Hud" to avoid colliding with BP variables.) */
+	UPROPERTY()
+	TObjectPtr<class URelationshipMeterWidget> RelationshipMeterHud;
+
+	UPROPERTY()
+	TObjectPtr<class UQuestLogWidget> QuestLogHud;
+
+	/** The Rumor Journal widget while open (null when closed). */
+	UPROPERTY()
+	TObjectPtr<class URumorJournalWidget> JournalHud;
 
 public:
 

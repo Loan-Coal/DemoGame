@@ -4,9 +4,44 @@
 // Net I/O: no
 
 #include "QuestLogWidget.h"
+#include "UiStyle.h"
+#include "Blueprint/WidgetTree.h"
 #include "Components/VerticalBox.h"
+#include "Components/VerticalBoxSlot.h"
 #include "Components/TextBlock.h"
+#include "Components/Border.h"
 #include "DemoGame.h"
+
+TSharedRef<SWidget> UQuestLogWidget::RebuildWidget()
+{
+    if (WidgetTree && !WidgetTree->RootWidget)
+    {
+        BuildDefaultTree();
+    }
+    return Super::RebuildWidget();
+}
+
+void UQuestLogWidget::BuildDefaultTree()
+{
+    UBorder* Root = DemoUi::MakeBackdrop(*WidgetTree, /*bDim*/false, HAlign_Right, VAlign_Top);
+    UBorder* Card = DemoUi::MakePanel(*WidgetTree, DemoUi::Panel, DemoUi::PadRow);
+    Root->SetContent(Card);
+
+    UVerticalBox* Box = WidgetTree->ConstructWidget<UVerticalBox>();
+    Card->SetContent(Box);
+
+    UTextBlock* Header = DemoUi::MakeText(*WidgetTree, FText::FromString(TEXT("Quests")),
+        DemoUi::FontButton, DemoUi::TextAccent);
+    Box->AddChildToVerticalBox(Header);
+
+    QuestList = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("QuestList"));
+    if (UVerticalBoxSlot* ListSlot = Box->AddChildToVerticalBox(QuestList))
+    {
+        ListSlot->SetPadding(FMargin(0.f, DemoUi::PadRow, 0.f, 0.f));
+    }
+
+    WidgetTree->RootWidget = Root;
+}
 
 void UQuestLogWidget::NativeConstruct()
 {
@@ -46,11 +81,11 @@ void UQuestLogWidget::RefreshQuestList_Implementation()
 
     for (const FQuestStepState& Step : QS->GetActiveSteps())
     {
-        UTextBlock* Row = NewObject<UTextBlock>(this);
         const FString Label = Step.bCompleted
             ? FString::Printf(TEXT("[DONE] %s"), *Step.QuestId)
             : FString::Printf(TEXT("[    ] %s"), *Step.QuestId);
-        Row->SetText(FText::FromString(Label));
+        UTextBlock* Row = DemoUi::MakeText(*WidgetTree, FText::FromString(Label),
+            DemoUi::FontBody, Step.bCompleted ? DemoUi::TextMuted : DemoUi::TextPrimary);
         QuestList->AddChildToVerticalBox(Row);
     }
 }

@@ -52,10 +52,15 @@ public:
         TFunction<void(bool /*bSuccess*/)> OnResult,
         FOnNpcEngineError OnError) = 0;
 
-    /** GET /v1/npc/{npc_id}/state (envelope shape B). OnResult receives the raw .data JSON string. */
+    /**
+     * GET /v1/npc/{npc_id}/state (envelope shape B). DEC-029.
+     * All JSON parsing happens inside NpcEngineClient; callback receives a typed FNpcStateSnapshot.
+     * On non-2xx or parse failure: OnResult(invalid snapshot) + OnError. Never crashes.
+     * Non-blocking — returns immediately; callback fires on the game thread.
+     */
     virtual void GetNpcState(
         const FString& NpcId,
-        TFunction<void(const FString& /*DataJson*/)> OnResult,
+        TFunction<void(const FNpcStateSnapshot& /*Snapshot*/)> OnResult,
         FOnNpcEngineError OnError) = 0;
 
     /**

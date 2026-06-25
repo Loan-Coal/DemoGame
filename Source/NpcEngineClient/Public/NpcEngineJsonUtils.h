@@ -70,6 +70,16 @@ public:
      */
     static FString SerialiseQuestChoose(const FString& PlayerId, const FString& ChoiceId);
 
+    // ── NPC state snapshot parsing (Phase 6) ─────────────────────────────────
+
+    /**
+     * Parse the `.data` object from a GetNpcState OkEnvelope into FNpcStateSnapshot.
+     * Caller should call UnwrapEnvelopeData first to get the DataObj.
+     * Returns false (and sets Out.bValid=false) if DataObj is null or malformed.
+     */
+    static bool ParseNpcStateSnapshot(
+        const TSharedPtr<FJsonObject>& DataObj, FNpcStateSnapshot& Out);
+
     // ── TTS stub ─────────────────────────────────────────────────────────────
 
     /**

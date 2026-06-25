@@ -97,7 +97,10 @@ Output the per-axis vector + total + a 1-line rationale per candidate. Surface t
 For the category it ran, a session produces **all** of:
 
 1. **Shortlist** — appended to `project-harness/asset-shortlists/<category>.md`: 2–4 options per asset, each with
-   source URL, license, rubric score, pros/cons, and a **recommended pick** (with the caveat that the human confirms the look).
+   source URL, license, rubric score, pros/cons, and **two recommended picks per asset — a 🆓 top free/CC0 pick
+   AND a ⭐ top overall pick** (each caveated "human confirms the look"). If the two coincide (the best option is
+   also free), say so explicitly. If **no** free/CC0 option exists for that asset, the free line must say so and
+   name the **cheapest paid floor** instead — never silently omit the free pick.
 2. **Scoped fetch script** (CC0 tier only, **NOT auto-run**) — `project-harness/asset-scripts/fetch_<category>.sh|.ps1`
    using `curl`/`wget`, listing only the **specific human-approved** shortlist items (no bundles, no GB-scale pulls),
    writing into a staging folder (NOT directly into `Content/` — staging keeps unreviewed assets out of the project).
@@ -114,7 +117,9 @@ For the category it ran, a session produces **all** of:
 - **≥ 2 options per asset** (target 2–4), each scored on the §2 0/14 scale with the per-axis vector.
 - Each option records: source URL (fetched), exact license string (quoted), UE5.x support (quoted/stated),
   texture resolution / tri-count where applicable, pros, cons.
-- A **recommended pick per asset** with a one-line reason, caveated "human confirms the look."
+- **Two picks per asset** — a 🆓 top free/CC0 pick AND a ⭐ top overall pick — each with a one-line reason,
+  caveated "human confirms the look." If no free/CC0 option exists, the free line says so and names the cheapest
+  paid floor.
 - All four §3 deliverables produced for the category. NC/CC-BY rows tagged `swap_for_commercial: YES`.
 - Explicit statement of what was *scripted* (left for the human to run) vs *only instructed*.
 
@@ -125,6 +130,8 @@ A session must NOT:
 - Drop unreviewed binaries straight into `Content/` (use staging).
 - Claim a manual-tier asset was acquired (it can only instruct).
 - Pick a single option when the user asked for **multiple** — always shortlist.
+- Collapse the two picks into one. **Every asset ends with both a 🆓 top free pick and a ⭐ top overall pick** (or
+  an explicit "no free option exists — cheapest paid floor is X"). A lone recommendation is an incomplete run.
 
 ---
 
@@ -196,11 +203,12 @@ Each task is independently runnable. Suggested execution order matches the roadm
   - **Lira** — fence: hooded cloak / dark layered commoner garb for the dim back room.
   - **Aldric** — wine merchant: a respectable middle-class doublet/tunic, slightly finer cloth.
   - **Old Henryk** — elderly commoner: worn robe/tunic, the end-of-chain old man.
-- **Session does:** shortlist (per §2 0/14 scale, per §3 definition-of-done) **2–4 options per outfit** from:
-  (a) **Fab** (filter Free + NC; weight MetaHuman-rig/skeleton compatibility heavily), (b) MetaHuman-native
-  clothing where it exists, (c) alternative routes (Marvelous Designer garments + how they bind to the
-  MetaHuman body, CC0 garment scans). **Fetch and quote** each license + the rig/skeleton-compatibility claim
-  from the asset page — do not assume "Fab humanoid = MetaHuman-rigged" (most are UE-Mannequin-rigged and need
+- **Session does:** shortlist (per §2 0/14 scale, per §3 definition-of-done) **2–4 options per outfit, ending
+  each outfit with a 🆓 top free pick AND a ⭐ top overall pick** (or "no free option exists — cheapest paid
+  floor is X"), from: (a) **Fab** (filter Free + NC; weight MetaHuman-rig/skeleton compatibility heavily),
+  (b) MetaHuman-native clothing where it exists, (c) alternative routes (Marvelous Designer garments + how they
+  bind to the MetaHuman body, CC0 garment scans). **Fetch and quote** each license + the rig/skeleton-compatibility
+  claim from the asset page — do not assume "Fab humanoid = MetaHuman-rigged" (most are UE-Mannequin-rigged and need
   retarget/skin-wrap; call that out per option). Note per option: does it ship as a MetaHuman-groomable mesh,
   a skeletal mesh needing retarget, or a static garment needing Mesh-to-MetaHuman / cloth-binding?
 - **This is the whole photoreal cast's go/no-go gate.** End the run with an explicit **GO / NO-GO / CONDITIONAL**

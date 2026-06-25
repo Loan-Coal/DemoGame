@@ -124,5 +124,6 @@ private:
 
     void HandleResponse(const FNpcDialogueResponse& Response);
     void NotifyManagerOfResponse(FName NpcId, const FNpcDialogueResponse& Response);
+    void NotifyGossipCache(FName NpcId, const FNpcDialogueResponse& Response);
     void HandleError(const FString& Error);
 };

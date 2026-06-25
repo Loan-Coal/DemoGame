@@ -99,5 +99,8 @@ private:
     /** Set to true once OnTavernBackUnlocked fires — prevents repeat broadcasts. */
     bool bTavernBackUnlocked = false;
 
+    /** Set to true once Sorn's patrol_duty quest fires — prevents repeat activation. */
+    bool bSornQuestFired = false;
+
     INpcDialogueService* ResolveService();
 };

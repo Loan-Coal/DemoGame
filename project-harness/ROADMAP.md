@@ -7,6 +7,16 @@ All `NpcEngineClient` tasks follow strict TDD: **write the failing Automation Sp
 fails for the right reason, implement minimal to pass, refactor green. Gameplay tasks use smoke + manual
 + functional Automation tests.
 
+### Headless-first policy (for the `/expand-next` overnight loop)
+
+Every phase is split into a **headless C++ block** (the loop implements + gates green + ticks) and a
+thin **human tail** (`[EDITOR SESSION]` blocks + items tagged `(human — …)`: MetaHuman/material/level
+art and live-LLM playtests). The loop **logs each human tail to `HUMAN_VERIFICATION.md` and advances to
+the next phase's headless work — it never stops merely because a phase's remaining steps are manual.**
+Maximise headless C++ first: spatial layout, data, UI logic, and asset *wiring* live in code; only
+visual/spatial *authoring* and live playtests stay human. See `Scripts/overnight-prompt.md` for the
+exact terminal conditions.
+
 ---
 
 ## Bring-up — before any new game work (do these first)
@@ -82,10 +92,10 @@ fails for the right reason, implement minimal to pass, refactor green. Gameplay 
 
 ---
 
-## Phase 2 — World Skeleton + Tick *(C++ tasks complete 2026-06-24; editor/level tasks pending)*
+## Phase 2 — World Skeleton + Tick *(tick C++ complete 2026-06-24; procedural greybox world = NEXT headless work)*
 
-**Goal:** Three navigable locations in box geometry; location arrival fires a world clock tick.
-**Independently demoable:** Player walks between three rooms; Output Log shows tick number incrementing on each arrival; re-entering the same location shows no tick.
+**Goal:** Three navigable locations the player can walk between; location arrival fires a world clock tick.
+**Independently demoable:** Player walks between three regions; Output Log shows tick number incrementing on each arrival; re-entering the same location shows no tick.
 **Prerequisites:** Phase 1 (INpcDialogueService interface stable; UNpcEngineRestClient implements PostClockAdvance).
 **Quality gate:** `pwsh Scripts/check.ps1 -WithBuild`
 
@@ -111,7 +121,25 @@ fails for the right reason, implement minimal to pass, refactor green. Gameplay 
   - [x] Shows authored `FText` for `SubtitleDisplaySeconds` (default 3 s), then fades via `FadeOutAnimation` (`BindWidgetAnimOptional`); fallback timer-hide when no animation assigned
   - [x] Authored text in `ULocationSubtitleData` DataAsset (`TMap<FName, FText> SubtitleByLocation`); assign `DA_LocationSubtitles` in editor. Locations with no entry show nothing.
 
-### [EDITOR SESSION] — Level Creation + Travel Triggers
+### Procedural Greybox World (C++ — headless; makes the slice playable with zero editor work)
+
+A C++ subsystem builds the playable greybox world at begin-play so the loop (and the player) can walk
+Tavern → Market → Barracks and exercise dialogue/quests/gossip **without any hand-built level**. Real
+art levels become an optional Phase 8 pass that overrides this. **This block replaces the editor
+level-build as the demo blocker; the `[EDITOR SESSION]` below is now an OPTIONAL human tail.**
+
+- [ ] `UGreyboxWorldSubsystem` (World Subsystem, DemoGame module, Net I/O: no) — single source of spatial truth:
+  - [ ] Static `GetLayout()` returns a table of `FGreyboxLocation { FName Id; FVector CenterOffset; float Radius; bool bFiresTick; }` for the 4 canonical locations (`loc_tavern`, `loc_tavern_back` with `bFiresTick=false`, `loc_market_square`, `loc_guard_barracks`), spread along +X so the player walks Tavern → Market → Barracks in order; the back room sits off the main path.
+  - [ ] Write failing Automation Spec first (DemoGame/Tests, pure — no world): layout contains the 4 canonical locations; only `loc_tavern_back` has `bFiresTick=false`; every location radius > 0; **every NPC `LocationId` in `UNpcSpawnerSubsystem::GetRoster()` maps to a layout entry** (roster ↔ layout consistency).
+  - [ ] `ShouldCreateSubsystem` gated to game worlds; `OnWorldBeginPlay` → `EnsureBuilt()` (idempotent `bBuilt` guard) — mirror the `UNpcAutoSeedSubsystem` lifecycle pattern (DEC-035).
+  - [ ] `EnsureBuilt()`: resolve a base (PlayerStart, fallback world origin); spawn a floor slab (scaled `/Engine/BasicShapes/Cube`), a light perimeter wall, and one `ANpcLocation` per layout entry (set `LocationId`, `bFiresTick`, trigger radius). **Skip** a location if an `ANpcLocation` with that id already exists in the loaded level (forward-compat with authored levels).
+  - [ ] `GetLocationCenter(FName)` returns the absolute ground point for a location (builds first if needed).
+- [ ] Wire `UNpcSpawnerSubsystem` to the layout so NPCs stand inside their own location trigger:
+  - [ ] Before spawning, `EnsureBuilt()` the greybox subsystem; place each NPC at `GetLocationCenter(LocationId)` + a small intra-location spread (shrink the roster `Offset`s to spreads). Fall back to the player-start base if the greybox subsystem is absent.
+  - [ ] Move the cube's `+CubeHalfHeight` onto the actor's relative mesh offset so the actor root sits at the feet (prep for the Phase 7 avatar swap); spawn the root at the traced floor.
+- [ ] **Human tail (log to HUMAN_VERIFICATION.md):** PIE — press Play (engine up → auto-seed) → walk Tavern → Market → Barracks; ticks logged, no double-tick on re-entry; all 5 NPCs reachable.
+
+### [EDITOR SESSION] — Real Art Levels + Travel Triggers *(OPTIONAL human tail — deferred to Phase 8; the C++ greybox above makes the slice playable now)*
 
 **What to do in Unreal Editor / Rider:**
 1. Create four levels using box BSP geometry:
@@ -185,7 +213,7 @@ fails for the right reason, implement minimal to pass, refactor green. Gameplay 
 **Prerequisites:** Phase 3 (world seeded; DemoWorld_v1.json stable; all 5 NPC nodes exist in engine).
 **Quality gate:** `pwsh Scripts/check.ps1 -WithBuild -WithTests`
 
-- [ ] **Author fallback lines for Mira and Lira** in `DA_NpcFallbackLines` DataAsset (`TMap<FName, FText>`). Keys are the NPC ID FName constants — no hardcoded string literals in C++. Example text: Mira: *"…Mira seems distracted and doesn't respond."*; Lira: *"…Lira shrugs and looks away."* These appear on 30 s timeout or non-2xx from the engine.
+- [ ] **Author fallback lines for Mira and Lira** in `DA_NpcFallbackLines` DataAsset (`TMap<FName, FText>`) *(human — optional DataAsset override; C++ defaults already ship these via `NpcFallbackDefaults.h` / DEC-020, so dialogue already falls back correctly without this)*. Keys are the NPC ID FName constants — no hardcoded string literals in C++. These appear on 30 s timeout or non-2xx from the engine.
 - [x] Write failing functional Automation Spec for `UDialogueComponent` (DemoGame/Tests): *(2026-06-24)*
   - [x] `SubmitMessage("")` → rejected client-side (no delegate fired, no HTTP call); uses `NpcEngine::MaxPlayerMessageChars` named constant from NpcEngineClient
   - [x] `SubmitMessage` with string over `NpcEngine::MaxPlayerMessageChars` → rejected client-side
@@ -203,7 +231,7 @@ fails for the right reason, implement minimal to pass, refactor green. Gameplay 
   - [x] `memories_recalled` badge: `MemoriesBadge` (`UTextBlock`, `BindWidgetOptional`) shown for 5 s via `FTimerHandle`; text from `UMemoryBadgeLookupAsset`; never shown when array is empty.
   - [x] No art — white panels, legible fonts at this stage. Visual polish in Phase 9.
 - [x] `URelationshipMeterWidget` (debug HUD overlay, DemoGame module, Net I/O: no): shows `trust`, `fear`, `affection` as signed integers (formatted `+N`/`-N`) per active NPC; `OnRelationshipUpdated` BlueprintNativeEvent for lerp animation in BP subclass. *(2026-06-24)*
-- [ ] Trust gate verification: accumulate trust with Mira past 25 via natural dialogue; confirm she reveals the Aldric information in dialogue history (do not check engine internals directly). Repeat 3 times from a fresh seed. Gate must clear in all 3 runs.
+- [ ] Trust gate verification *(human — see HUMAN_VERIFICATION.md; live LLM)*: accumulate trust with Mira past 25 via natural dialogue; confirm she reveals the Aldric information in dialogue history (do not check engine internals directly). Repeat 3 times from a fresh seed. Gate must clear in all 3 runs.
 
 ### [EDITOR SESSION] — NPC Capsule Placement + Widget Layout
 
@@ -304,39 +332,39 @@ fails for the right reason, implement minimal to pass, refactor green. Gameplay 
 **Prerequisites:** Phase 5 (all 5 NPC capsules placed; trust, quest, and faction systems functional; full golden path setup complete).
 **Quality gate:** `pwsh Scripts/check.ps1 -WithBuild -WithTests`
 
-- [ ] **Author fallback line for Old Henryk** in `DA_NpcFallbackLines`. All 5 NPC fallback lines are now authored (Mira + Lira in Phase 4; Aldric + Sorn in Phase 5; Old Henryk here).
-- [ ] `FNpcStateSnapshot` USTRUCT (NpcEngineClient module, Net I/O: no for the struct itself):
-  - [ ] Mirrors `GET /v1/npc/{npc_id}/state` response `data` field shape: `character` object, `relations` array, `events` array — all fields `UPROPERTY`
-  - [ ] Write failing Automation Spec first (NpcEngineClient/Tests):
-    - [ ] Parses `OkEnvelope` `.data` → `FNpcStateSnapshot` correctly (character fields present, relations count, events array)
-    - [ ] Non-2xx or parse error → empty `FNpcStateSnapshot` + error delegate; no crash
-- [ ] Add `GetNpcState(FName NpcId, ...)` to `INpcDialogueService` if not already present from DEC-013. Non-blocking: return immediately; callback with `FNpcStateSnapshot` fires on game thread. All parsing in NpcEngineClient; only `FNpcStateSnapshot` crosses the module boundary.
-- [ ] Write failing Automation Spec for `UGossipCacheSubsystem` (DemoGame/Tests):
-  - [ ] `AddGossipEntry(FName SourceNpcId, FName EventId, int32 HopCount, FText DistortionText)` stores a `FGossipEntry` USTRUCT
-  - [ ] `GetChainForEvent(FName EventId)` returns entries in HopCount ascending order
-  - [ ] Journal entry for an NPC at a hop is only returned after `MarkPlayerSpokeToNpc(NpcId)` is called
-- [ ] `UGossipCacheSubsystem` (World Subsystem, DemoGame module, Net I/O: no):
-  - [ ] Stores `TArray<FGossipEntry>` (USTRUCT `FGossipEntry`: `SourceNpcId`, `EventId`, `HopCount`, `DistortionText`, `bPlayerSpokeToNpc`)
-  - [ ] Updated after each tick: calls `Service->GetNpcState(NPC_ID_OLD_HENRYK_CONSTANT)` through `INpcDialogueService` — NPC ID via named FName constant, not a string literal. Parses `FNpcStateSnapshot.Events` to check if the war event `knowledge_state` has updated; if so, adds/updates Henryk's hop entry.
-  - [ ] Updated when dialogue response `learned_facts` contains a war-related event key (keyed by event ID FName constant)
-  - [ ] No `FHttpModule`; no JSON parsing; all net I/O through `INpcDialogueService`
-- [ ] `URumorJournalWidget` (UUserWidget, Tab key, DemoGame module, Net I/O: no):
-  - [ ] Reads from `UGossipCacheSubsystem`; refreshes on open
-  - [ ] Per chain: source → intermediate → endpoint NPC entries as card rows
-  - [ ] Each hop: NPC name (authored, not raw ID), authored distortion text (from seed), distortion level badge: `HopCount == 0` → "Firsthand"; `HopCount == 1` → "Rumor"; `HopCount >= 2` → "Distorted"
-  - [ ] Chain entry row only shown after `bPlayerSpokeToNpc == true` for that hop's NPC
-  - [ ] No art — readable text layout only at this stage
-- [ ] `ANoticeBoard` Actor (DemoGame module, Net I/O: no):
-  - [ ] `UPROPERTY TArray<FText> RumorTiers` (authored — 3 tiers: pre-war / rumors spreading / distorted widely). Property set in editor; not hardcoded in C++.
-  - [ ] `UPROPERTY TArray<int32> TierTickThresholds` (e.g., [0, 2, 4]). Named in a constants header; not magic numbers.
-  - [ ] Listens to `UNpcWorldSubsystem::FOnTickAdvanced`; advances to next tier when `TickCount` passes the authored threshold
-  - [ ] On E-examine: displays current tier text in a popup panel
-- [ ] Sorn quest chain unlock: `UDialogueComponent::OnTrustChanged` for the guard captain NPC (FName constant — not string literal) → if accumulated trust ≥ `TRUST_GATE_SORN_QUEST` named constant (threshold=50) → `UQuestSubsystem::ActivateQuest(QUEST_ID_PATROL_DUTY named constant)` → quest log updates
-- [ ] **GATE: Gossip chain 5/5 — do not start Phase 7 until this passes.**
+- [ ] (human — see HUMAN_VERIFICATION.md) **Author fallback line for Old Henryk** in `DA_NpcFallbackLines`. All 5 NPC fallback lines are now authored (Mira + Lira in Phase 4; Aldric + Sorn in Phase 5; Old Henryk here).
+- [x] `FNpcStateSnapshot` USTRUCT (NpcEngineClient module, Net I/O: no for the struct itself): *(2026-06-24)*
+  - [x] Mirrors `GET /v1/npc/{npc_id}/state` response `data` field shape: `character` object, `relations` array, `events` array — all fields `UPROPERTY`. Sub-structs `FNpcRelationEntry`, `FNpcEventEntry` also defined in `NpcEngineTypes.h`.
+  - [x] Write failing Automation Spec first (NpcEngineClient/Tests):
+    - [x] Parses `OkEnvelope` `.data` → `FNpcStateSnapshot` correctly (character fields present, relations count, events array)
+    - [x] Non-2xx or parse error → empty `FNpcStateSnapshot` + error delegate; no crash
+- [x] `GetNpcState` callback updated to `FNpcStateSnapshot` (DEC-029). All parsing in `NpcEngineJsonUtils::ParseNpcStateSnapshot`; only `FNpcStateSnapshot` crosses the module boundary. *(2026-06-24)*
+- [x] Write failing Automation Spec for `UGossipCacheSubsystem` (DemoGame/Tests): *(2026-06-24)*
+  - [x] `AddGossipEntry(FName SourceNpcId, FName EventId, int32 HopCount, FText DistortionText)` stores a `FGossipEntry` USTRUCT
+  - [x] `GetChainForEvent(FName EventId)` returns entries in HopCount ascending order
+  - [x] Journal entry for an NPC at a hop is only returned after `MarkPlayerSpokeToNpc(NpcId)` is called
+- [x] `UGossipCacheSubsystem` (World Subsystem, DemoGame module, Net I/O: no): *(2026-06-24)*
+  - [x] Stores `TArray<FGossipEntry>` (USTRUCT `FGossipEntry`: `SourceNpcId`, `EventId`, `HopCount`, `DistortionText`, `bPlayerSpokeToNpc`)
+  - [x] Updated after each tick: calls `Service->GetNpcState(NpcId::OldHenryk)` through `INpcDialogueService` — NPC ID via `NpcId::` constant, not a string literal. Parses `FNpcStateSnapshot.Events` to check if the war event `knowledge_state` has updated; if so, adds/updates Henryk's hop entry.
+  - [x] Updated when dialogue response `learned_facts` contains a war-related event key (keyed by `GossipEventId::NorthernWarBegins` FName constant). `UDialogueComponent::NotifyGossipCache` calls `MarkGossipFromDialogue` and `MarkPlayerSpokeToNpc`.
+  - [x] No `FHttpModule`; no JSON parsing; all net I/O through `INpcDialogueService`
+- [x] `URumorJournalWidget` (UUserWidget, Tab key, DemoGame module, Net I/O: no): *(2026-06-24)*
+  - [x] Reads from `UGossipCacheSubsystem`; refreshes on open
+  - [x] `OnJournalRefreshed` BlueprintNativeEvent — BP subclass populates chain card rows (editor session)
+  - [x] `GetDistortionLabel(HopCount)` static helper: HopCount 0 → "Firsthand"; 1 → "Rumor"; 2+ → "Distorted"
+  - [x] Chain entry row only shown after `bPlayerSpokeToNpc == true` for that hop's NPC (enforced in BP subclass)
+  - [x] No art — readable text layout only at this stage; `ChainScrollBox`/`ChainContainer` BindWidgetOptional
+- [x] `ANoticeBoard` Actor (DemoGame module, Net I/O: no): *(2026-06-24)*
+  - [x] `UPROPERTY TArray<FText> RumorTiers` (authored — 3 tiers: pre-war / rumors spreading / distorted widely). Property set in editor; not hardcoded in C++.
+  - [x] `UPROPERTY TArray<int32> TierTickThresholds` (defaults [0, 2, 4] via `NoticeBoardDefaults` constants in .cpp; not magic numbers).
+  - [x] Listens to `UNpcWorldSubsystem::FOnTickAdvanced`; advances to next tier when `TickCount` passes the authored threshold
+  - [x] `GetCurrentTierText()` returns the display text; BP_NoticeBoard wires E-examine → popup (editor session)
+- [x] Sorn quest chain unlock: `UNpcWorldSubsystem::NotifyRelationshipUpdated` checks `NpcId::CaptainSorn` accumulated trust ≥ `NpcEngine::TrustGateSornQuest` (50) → `UQuestSubsystem::ActivateQuest(QuestId::PatrolDuty)` → quest log updates. *(2026-06-24)*
+- [ ] (human — see HUMAN_VERIFICATION.md) **GATE: Gossip chain 5/5 — do not start Phase 7 until this passes.**
   - [ ] Run the full golden path 5 times from a fresh seed: Tavern (speak with Mira) → Barracks (build trust with Sorn; he shares war information) → Tavern (tick fires) → Market (speak with Old Henryk)
   - [ ] In all 5 runs: Henryk's dialogue response must contain the distorted war account from §7.2
   - [ ] If any run fails: tune `gossipy` and `credulity` personality values in `DemoWorld_v1.json` and re-run the seeder. Do not advance to Phase 7 until 5/5 pass.
-- [ ] **Greybox acceptance gate:** All 17 beats from §10 of the game design roadmap are playable start-to-finish. All trust gates, quest steps, gossip chain, Rumor Journal, and faction fork must be functional. Any non-functional beat is a blocker for Phase 7.
+- [ ] (human — see HUMAN_VERIFICATION.md) **Greybox acceptance gate:** All 17 beats from §10 of the game design roadmap are playable start-to-finish. All trust gates, quest steps, gossip chain, Rumor Journal, and faction fork must be functional. Any non-functional beat is a blocker for Phase 7.
 
 ### [EDITOR SESSION] — Notice Board + Journal Widget
 
@@ -366,6 +394,13 @@ fails for the right reason, implement minimal to pass, refactor green. Gameplay 
 **Quality gate:** `pwsh Scripts/check.ps1 -WithBuild`
 
 **C++ tasks (Rider, no editor required):**
+
+- [ ] **Data-driven appearance seam** (cube → MetaHuman with a one-line swap; DemoGame module, Net I/O: no) — do this FIRST, it decouples the swap from the editor:
+  - [ ] `NpcAppearance.h/.cpp` — the single swap point: `TSoftClassPtr<AActor> GetAvatarClass(FName NpcId)` backed by a `TMap<FName, FSoftClassPath>` that is **EMPTY today** (every NPC is a cube). Swapping one NPC to a MetaHuman = add one row pointing at the imported BP class path, e.g. `/Game/MetaHumans/Mira/BP_Mira.BP_Mira_C`. No other code change.
+  - [ ] Write failing Automation Spec first (DemoGame/Tests, pure): every rostered NPC defaults to empty (cube); unknown id → empty; the spawn roster's `AvatarClass` matches `GetAvatarClass` (no divergent second source).
+  - [ ] `ANpcGreyboxActor`: add `TSoftClassPtr<AActor> AvatarClass`; in `BeginPlay`, if set, load + spawn it as a child attached at the actor root (feet) and hide the cube + name label; else keep the cube. (Root-at-feet refactor lands in Phase 2.)
+  - [ ] `FNpcSpawnRecord` gains `TSoftClassPtr<AActor> AvatarClass`; the spawner fills it from `NpcAppearance::GetAvatarClass(NpcId)` and passes it to the actor.
+  - [ ] **Claude-doable swap:** once a MetaHuman is imported (editor session below) at a known `/Game/...` path, flipping that NPC is a one-line `NpcAppearance` edit — no editor step for the wiring, gate stays green. Records as a DECISIONS entry.
 - [ ] `UFacialExpressionMapper` (NpcEngineClient module, Net I/O: no):
   - [ ] Write failing Automation Spec first: maps `EFacialExpressionType::Neutral` → correct morph target name; maps unknown enum value → `Neutral` without crash; `ApplyExpression` with null `USkeletalMeshComponent*` → logs warning and returns without crash
   - [ ] Maps each `EFacialExpressionType` to `(TargetMorphName FName, WeightScale float)` pair. Lookup stored in `DA_FacialExpressionMap` DataAsset (prefix `DA_`).
@@ -494,8 +529,8 @@ fails for the right reason, implement minimal to pass, refactor green. Gameplay 
 **Prerequisites:** Phase 9 (UI and audio complete; full game loop playable).
 **Quality gate:** `pwsh Scripts/check.ps1 -WithBuild -WithTests`
 
-- [ ] **Author all notice board texts** — 3 tiers × up to 3 boards = 9 entries. Use "Thornfield" in all authored text; no other town name. Tiers: pre-war silence / rumors spreading / distorted widely.
-- [ ] **Author full `memories_recalled` badge lookup table** in `DA_MemoryBadgeLookup` DataAsset: authored `FText` display strings per memory node ID FName. Replace all Phase 3 stub entries with final authored text. Do not use raw memory node IDs as display text.
+- [ ] **Author all notice board texts** — 3 tiers × up to 3 boards = 9 entries. Use "Thornfield" in all authored text; no other town name. Tiers: pre-war silence / rumors spreading / distorted widely. *(headless: author as C++ constants like the existing `MakeNoticeTiers()` / DEC-028 quest metadata — no DataAsset needed.)*
+- [ ] **Author full `memories_recalled` badge lookup table** as C++ constants (headless — like DEC-028; a `DA_MemoryBadgeLookup` DataAsset may override later): authored `FText` display strings per memory node ID FName. Replace all Phase 3 stub entries with final authored text. Do not use raw memory node IDs as display text.
 - [ ] **Review and finalize fallback canned lines** for all 5 NPCs (used on 30 s LLM timeout or non-2xx). Authored per phase: Mira + Lira (Phase 4), Aldric + Sorn (Phase 5), Old Henryk (Phase 6). Ensure each line fits the NPC's personality and does not break immersion.
 - [ ] **Author `aldric_confession` dialogue context** — seed verbatim to the engine via the appropriate seeding endpoint (verify path in DECISIONS.md per the Phase 3 admin endpoint task):
   - `aldric_merchant.belief["amulet_origin"]`: *"This amulet — I took it as trade debt in Riverwheel from a soldier passing through. He needed coin quickly; I didn't ask why. That was weeks ago. Now I have guardsmen coming to my stall asking what I know. I understand it now: that man deserted his post. He fled the northern garrison before the skirmish was reported, and this is what he left behind. I'm holding his evidence. That's what they want."*

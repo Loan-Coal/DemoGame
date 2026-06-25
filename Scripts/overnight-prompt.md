@@ -10,10 +10,12 @@ strict TDD for NpcEngineClient: failing Automation Spec first, confirm it fails 
 reason, minimal implementation, refactor green). But with these OVERRIDES for unattended mode:
 
 ### 1. Pick the target phase
-Read `project-harness/ROADMAP.md`. Find the FIRST phase that still has at least one unchecked
-`[ ]` step that is implementable HEADLESSLY (C++, tests, JSON/data files, docs). Skip steps
-that require the Unreal Editor (see §3). If a phase has ONLY editor steps left, record them
-per §3 and move to the next phase.
+Read `project-harness/ROADMAP.md`. Every phase is split into a **headless C++ block** and a thin
+**human tail** (`[EDITOR SESSION]` blocks + steps tagged `(human — …)`: MetaHuman/material/level art
+and live-LLM playtests). Find the FIRST phase that still has at least one unchecked `[ ]` step that is
+implementable HEADLESSLY (C++, tests, JSON/data files, docs). Skip the human-tail steps (see §3). If a
+phase's only remaining steps are its human tail, record them per §3 and move to the next phase — a
+manual tail NEVER blocks the loop.
 
 ### 2. Do the headless work — full TDD, full gate
 - Implement every headless `[ ]` step in that phase, in order, one commit per step.
@@ -31,10 +33,11 @@ per §3 and move to the next phase.
 - If the gate fails on a real error: fix it. If unfixable after genuine effort, BLOCKED as above.
 - Tick the `[x]` box in ROADMAP for each completed step, in the same commit (only after green).
 
-### 3. Editor-only steps — LOG, do not halt
-Any step requiring the Unreal Editor (placing actors, authoring DataAssets/MetaHumans,
-laying out UMG widgets, building levels, materials, PIE playtests, "[EDITOR SESSION]" blocks,
-"manual"/"PIE" verification) CANNOT be done headlessly. For each such step:
+### 3. Human-tail steps (editor + live verification) — LOG, do not halt
+Any step in a phase's human tail — requiring the Unreal Editor (placing actors, authoring
+DataAssets/MetaHumans, laying out UMG widgets, building art levels, materials, "[EDITOR SESSION]"
+blocks) OR a live-LLM / PIE playtest ("manual"/"PIE"/"human — …" verification) — CANNOT be done
+headlessly. Log it and keep going; do NOT treat it as "work remaining" that blocks advancing. For each:
 - Append a section to `project-harness/HUMAN_VERIFICATION.md` (follow the FORMAT comment at
   the bottom of that file). Copy the editor instructions VERBATIM from the ROADMAP
   "[EDITOR SESSION]" block — exact actor names, NpcIds, widget bind names, property values.

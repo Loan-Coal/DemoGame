@@ -70,12 +70,13 @@ public:
     // ── Debug / state reads ──────────────────────────────────────────────────
 
     /**
-     * GET /v1/npc/{npc_id}/state  (envelope shape B).
-     * OnResult receives the raw .data JSON string for the debug overlay.
+     * GET /v1/npc/{npc_id}/state  (envelope shape B). DEC-029.
+     * Parses the envelope inside NpcEngineClient; callback receives a typed FNpcStateSnapshot.
+     * On non-2xx or parse failure: OnResult(invalid snapshot) + OnError.
      */
     virtual void GetNpcState(
         const FString& NpcId,
-        TFunction<void(const FString& /*DataJson*/)> OnResult,
+        TFunction<void(const FNpcStateSnapshot&)> OnResult,
         FOnNpcEngineError OnError) override;
 
     /**

@@ -50,11 +50,14 @@ public:
 
     virtual void GetNpcState(
         const FString& /*NpcId*/,
-        TFunction<void(const FString&)> OnResult,
+        TFunction<void(const FNpcStateSnapshot&)> OnResult,
         FOnNpcEngineError /*OnError*/) override
     {
-        OnResult(TEXT("{}"));
+        OnResult(CannedNpcStateSnapshot);
     }
+
+    /** Override in tests to return a specific snapshot. Default: empty invalid snapshot. */
+    FNpcStateSnapshot CannedNpcStateSnapshot;
 
     // ── AdvanceClock ─────────────────────────────────────────────────────────
 

@@ -157,6 +157,62 @@ bool FNpcEngineJsonUtils::UnwrapEnvelopeData(const FString& JsonBody, TSharedPtr
     return true;
 }
 
+// ── NPC state snapshot parsing ────────────────────────────────────────────────
+
+bool FNpcEngineJsonUtils::ParseNpcStateSnapshot(
+    const TSharedPtr<FJsonObject>& DataObj, FNpcStateSnapshot& Out)
+{
+    Out = FNpcStateSnapshot{}; // clear
+    if (!DataObj.IsValid())
+    {
+        return false;
+    }
+
+    // character sub-object (optional — may be absent on partial responses)
+    const TSharedPtr<FJsonObject>* CharObj = nullptr;
+    if (DataObj->TryGetObjectField(TEXT("character"), CharObj) && CharObj)
+    {
+        (*CharObj)->TryGetStringField(TEXT("id"),   Out.NpcId);
+        (*CharObj)->TryGetStringField(TEXT("name"), Out.Name);
+    }
+
+    // relations array
+    const TArray<TSharedPtr<FJsonValue>>* RelArr = nullptr;
+    if (DataObj->TryGetArrayField(TEXT("relations"), RelArr))
+    {
+        for (const TSharedPtr<FJsonValue>& Val : *RelArr)
+        {
+            const TSharedPtr<FJsonObject>* Obj = nullptr;
+            if (!Val->TryGetObject(Obj) || !Obj) continue;
+            FNpcRelationEntry E;
+            (*Obj)->TryGetStringField(TEXT("target_id"), E.TargetId);
+            (*Obj)->TryGetNumberField(TEXT("trust"),     E.Trust);
+            (*Obj)->TryGetNumberField(TEXT("fear"),      E.Fear);
+            (*Obj)->TryGetNumberField(TEXT("affection"), E.Affection);
+            Out.Relations.Add(E);
+        }
+    }
+
+    // events array
+    const TArray<TSharedPtr<FJsonValue>>* EvArr = nullptr;
+    if (DataObj->TryGetArrayField(TEXT("events"), EvArr))
+    {
+        for (const TSharedPtr<FJsonValue>& Val : *EvArr)
+        {
+            const TSharedPtr<FJsonObject>* Obj = nullptr;
+            if (!Val->TryGetObject(Obj) || !Obj) continue;
+            FNpcEventEntry E;
+            (*Obj)->TryGetStringField(TEXT("event_id"),       E.EventId);
+            (*Obj)->TryGetStringField(TEXT("knowledge_state"), E.KnowledgeState);
+            (*Obj)->TryGetNumberField(TEXT("hop_count"),       E.HopCount);
+            Out.Events.Add(E);
+        }
+    }
+
+    Out.bValid = true;
+    return true;
+}
+
 // ── Serialisation ────────────────────────────────────────────────────────────
 
 FString FNpcEngineJsonUtils::SerialiseDialogueRequest(const FNpcDialogueRequest& Req)

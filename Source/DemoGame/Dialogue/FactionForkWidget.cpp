@@ -4,9 +4,58 @@
 // Net I/O: no
 
 #include "FactionForkWidget.h"
+#include "UiStyle.h"
+#include "Blueprint/WidgetTree.h"
 #include "Components/Button.h"
 #include "Components/TextBlock.h"
+#include "Components/Border.h"
+#include "Components/VerticalBox.h"
+#include "Components/VerticalBoxSlot.h"
 #include "DemoGame.h"
+
+TSharedRef<SWidget> UFactionForkWidget::RebuildWidget()
+{
+    if (WidgetTree && !WidgetTree->RootWidget)
+    {
+        BuildDefaultTree();
+    }
+    return Super::RebuildWidget();
+}
+
+void UFactionForkWidget::BuildDefaultTree()
+{
+    UBorder* Root = DemoUi::MakeBackdrop(*WidgetTree, /*bDim*/true, HAlign_Center, VAlign_Center);
+    UBorder* Card = DemoUi::MakePanel(*WidgetTree, DemoUi::Panel);
+    Root->SetContent(Card);
+
+    UVerticalBox* Box = WidgetTree->ConstructWidget<UVerticalBox>();
+    Card->SetContent(Box);
+
+    UTextBlock* Title = DemoUi::MakeText(*WidgetTree,
+        FText::FromString(TEXT("Choose a side")), DemoUi::FontTitle,
+        DemoUi::TextPrimary, ETextJustify::Center);
+    Box->AddChildToVerticalBox(Title);
+
+    UTextBlock* LabelA = nullptr;
+    UTextBlock* LabelB = nullptr;
+    ChoiceAButton = DemoUi::MakeButton(*WidgetTree, FText::FromString(TEXT("Option A")),
+        LabelA, TEXT("ChoiceAButton"), TEXT("ChoiceALabel"));
+    ChoiceBButton = DemoUi::MakeButton(*WidgetTree, FText::FromString(TEXT("Option B")),
+        LabelB, TEXT("ChoiceBButton"), TEXT("ChoiceBLabel"));
+    ChoiceALabel = LabelA;
+    ChoiceBLabel = LabelB;
+
+    for (UButton* Btn : { ChoiceAButton.Get(), ChoiceBButton.Get() })
+    {
+        if (UVerticalBoxSlot* ItemSlot = Box->AddChildToVerticalBox(Btn))
+        {
+            ItemSlot->SetPadding(FMargin(0.f, DemoUi::PadRow, 0.f, 0.f));
+            ItemSlot->SetHorizontalAlignment(HAlign_Fill);
+        }
+    }
+
+    WidgetTree->RootWidget = Root;
+}
 
 void UFactionForkWidget::NativeConstruct()
 {

@@ -68,9 +68,53 @@
 **Found:** 2026-06-24
 **Severity:** P1
 **Where:** Build gate (`Scripts/check.ps1 -WithBuild`)
-**Description:** All Phase 6 headless C++ implementation is complete (FNpcStateSnapshot, GossipCacheSubsystem, RumorJournalWidget, ANoticeBoard, Sorn quest gate, two Automation specs, HUMAN_VERIFICATION.md Phase 6 section). The build gate exits with code 6: "Unable to build while Live Coding is active." The Rules check and Contract Sync both pass. Changes are NOT committed because the overnight runner rule forbids committing a red gate.
+**Description:** All Phase 6 headless C++ implementation is complete (FNpcStateSnapshot, GossipCacheSubsystem, RumorJournalWidget, ANoticeBoard, Sorn quest gate, two Automation specs, HUMAN_VERIFICATION.md Phase 6 section). The build gate exits with code 6: "Unable to build while Live Coding is active." Rules check (0 violations) and Contract Sync both pass as of 2026-06-24. Changes are NOT committed because the overnight runner rule forbids committing a red gate. The 7 hardcoded NPC ID violations in GossipCache.spec.cpp were fixed (replaced raw string literals with NpcId:: constants + GossipEventId::NorthernWarBegins) — rules are now clean.
 **Why deferred:** Unreal Editor is open with Live Coding enabled — pure environmental blocker, not a code error. Once the editor is closed the gate will pass and the commit can proceed.
 **To fix:** Close Unreal Editor (or disable Live Coding via Ctrl+Alt+F11). Then run `powershell -NoProfile -ExecutionPolicy Bypass -File Scripts/check.ps1 -WithBuild -WithTests`. If green, commit all Phase 6 changes: `git add Source/ project-harness/ Seed/ docs/ Scripts/` then `git commit -m "feat(phase6): GossipCacheSubsystem + FNpcStateSnapshot + RumorJournalWidget + NoticeBoard + Sorn quest gate"`.
+
+## ISSUE-011: No interaction prompt before opening NPC dialogue
+**Found:** 2026-06-25
+**Severity:** P3
+**Where:** `Source/DemoGame/DemoGameCharacter.cpp` (`OpenDialogue` / interact path), NPC actors
+**Description:** Interacting with an NPC opens the dialogue widget directly with no on-screen prompt (e.g. "Press E to talk") and no confirmation popup when in range. The player has no affordance telling them an NPC is interactable or which key starts dialogue. Noted during the floating-cube / dialogue-UI fix; user confirmed it is acceptable for the current greybox stage.
+**Why deferred:** Out of scope for the current task (grounding + dialogue-panel visibility). Dialogue is fully reachable without the prompt; this is discoverability polish, not a blocker.
+**To fix:** Add a small world-space or screen-space prompt that appears when an NPC is within `InteractRadius` (reuse `FindNearestNpc`), showing the interact key. Hide it once dialogue opens.
+
+## ISSUE-012: No free female MetaHuman-native medieval clothing option exists
+**Found:** 2026-06-25
+**Severity:** P2
+**Where:** Asset acquisition Task B — Mira and Lira outfit slots
+**Description:** All confirmed female MetaHuman-rigged medieval clothing on Fab is paid (~$3–50 per pack). No CC0 or free female medieval garment exists for MetaHuman. DevonLux's free CC-BY library on Sketchfab (5 Piece Leather Peasant, Heavy Armor, Scalemail, Cloth Armor) covers only "Tall, Normal-Weight, Male" MetaHumans. This means a minimum cash purchase is required for Mira and Lira regardless of the chosen quality tier.
+**Why deferred:** Task B research only — purchasing is a human gate. Not a code issue.
+**To fix:** Human selects and purchases one of the shortlisted options from `metahuman-clothing.md`. Budget minimum: Yasin ERHAN Female & Male Rustic (~$3–4); recommended quality path: PolyWear Resizable Collection (~$20–30, covers both Mira and multiple other NPCs).
+
+## ISSUE-013: Lira's hooded cloak has no direct MetaHuman-native free/cheap equivalent
+**Found:** 2026-06-25
+**Severity:** P2
+**Where:** Asset acquisition Task B — Lira outfit slot; `project-harness/asset-shortlists/metahuman-clothing.md`
+**Description:** Lira's role requires a dark hooded commoner garb for the dim back room. No MetaHuman-native paid or free asset was found with a dedicated hood/cloak garment. The closest option (Medieval Priest & Nun on Fab) is a UE5 Mannequin rig that requires an IK Retarget step (~1–2h of manual editor work) to bind to the MetaHuman skeleton. The fallback (Meta Clothes Designer Dress III, ~$49.99) is MetaHuman-native but has no hood — the "hooded" effect relies entirely on the dim `L_TavernBack` lighting and material darkening.
+**Why deferred:** Task B is research only; no assets purchased yet. The retarget-quality question can only be answered after a human performs the retarget and inspects the result in-editor.
+**To fix:** (1) Human tests the Medieval Priest & Nun retarget (IK Retargeter, Quinn → MetaHuman, ~1–2h). (2) If retarget quality is unacceptable: fall back to Meta Clothes Designer Dress III + dark material + L_TavernBack chiaroscuro lighting — the silhouette alone (back-room, dim, behind the bar) carries the "fence" read. (3) Long-term: commission or create a dedicated hooded cloak for MetaHuman if the project scales.
+
+## ISSUE-014: GrubyCommander and Medieval Priest & Nun prices unconfirmed (Fab 403)
+**Found:** 2026-06-25
+**Severity:** P3
+**Where:** `project-harness/asset-shortlists/metahuman-clothing.md` — Aldric/Henryk and Lira picks
+**Description:** Fab.com listing pages return HTTP 403 for unauthenticated fetches. The prices for GrubyCommander Rustic Medieval Granular Modular and Medieval Priest & Nun could not be verified this research run. The shortlist includes price estimates (GrubyCommander: ~$20–50; Priest & Nun: ~$50–150 based on being a "stripped-down" version of the $449 Modular Medieval V2) but these are unconfirmed. Actual prices must be verified in-editor before purchase.
+**Why deferred:** Requires Epic login + in-editor Fab panel to verify. Research-only blocker; no code impact.
+**To fix:** Human opens the Fab plugin (Windows → Fab), searches for each asset by name, and confirms price before purchasing. If either price exceeds budget, select the corresponding fallback from the shortlist.
+
+## ISSUE-015: Legacy fixed-body MetaHuman clothing is not "drop-in" on UE5.6+ parametric MetaHumans
+**Found:** 2026-06-25
+**Severity:** P2
+**Where:** Asset acquisition Task B — all fixed skeletal-mesh clothing picks (DevonLux free CC-BY, Meta Clothes Designer I/II/III, Medieval Priest & Nun); `project-harness/asset-shortlists/metahuman-clothing.md`
+**Description:** The UE5.6+ MetaHuman is parametric (adjustable body shape) and the official pipeline moved to **Chaos Outfit Assets** that auto-conform. Verified this run from current sources:
+- Official Hair & Clothing Controls doc (https://dev.epicgames.com/documentation/en-us/metahuman/hair-and-clothing-controls): only parametric outfits auto-resize — *"Wearing an outfit will cause it to automatically resize to fit the current body... if further changes to the body shape are made,"* whereas a SkeletalMesh garment **does not** auto-adjust. The wardrobe system also rejects skeletal clothing *"created using an incompatible skeleton"* (validation; can be disabled in Project Settings → Wardrobe → Enable Wardrobe Item Validation).
+- UE5.6 removed the legacy **+2 cm MetaHuman foot offset** → footwear authored pre-5.6 sits below the ground plane (search-confirmed via Epic forum / yelzkizi pipeline notes).
+- UE5.7 in-editor Creator's new `SKM_MHC_*` body meshes show **retargeting deformation regressions** even when sharing `metahuman_base_skel` (search-confirmed).
+The body skeleton (`metahuman_base_skel`, an extended UE5-Mannequin skeleton) is still shared, so legacy clothing *attaches*, but it (a) will NOT conform if the MetaHuman body shape is adjusted, (b) is skinned to ONE fixed body type (e.g. DevonLux = "Tall, Normal-Weight, Male" only), (c) may need a vertical offset fix for shoes, and (d) may fail wardrobe validation. So "outdated clothing unusable" is partly true: not broken bones, but no longer drop-in.
+**Why deferred:** Task B is research-only; impact is verified per-asset only by a human skin test in-editor.
+**To fix:** Prefer **parametric / Chaos Outfit Asset** items (PolyWear, GrubyCommander — advertised "MetaHuman Creator parametric", recent 2025 updates) as the latest-MetaHuman-safe path. For fixed skeletal-mesh items (incl. all free DevonLux): keep the MetaHuman body at (or near) the asset's authored body type, attach via SkeletalMeshComponent + Leader Pose (not as a validated wardrobe item, or disable validation), and correct the foot height if shoes clip the floor. Confirm each asset's last-updated date is post-5.6 before relying on it. This is the strongest reason the recommended *quality* path is parametric, and a real caveat on the free path.
 
 <!--
 IDs are monotonic and never reused — check this file AND archive/ISSUES_RESOLVED.md before numbering.

@@ -185,6 +185,10 @@ void FNpcWorldSeederSpec::Define()
     {
         It("fires OnError and stops when the first HTTP call returns non-2xx", [this]()
         {
+            // The halt path logs an Error by design; declare it expected so the framework does not
+            // auto-fail the test on the logged Error.
+            AddExpectedError(TEXT("SeedWorld halted"), EAutomationExpectedErrorFlags::Contains, 0);
+
             int32 TotalCalls = 0;
             bool bErrorFired = false;
             UNpcWorldSeeder* Seeder = NewObject<UNpcWorldSeeder>();

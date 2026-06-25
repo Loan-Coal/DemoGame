@@ -18,8 +18,11 @@ class UVerticalBox;
  * Bind `QuestList` (Vertical Box) in the WBP_QuestLog subclass.
  * Populate is called automatically on OnQuestActivated and OnStepCompleted.
  * Blueprint subclass adds visual styling only — no logic.
+ *
+ * Layout: a legible default HUD panel (header + QuestList) is built in C++ when no designer
+ * layout is present; an authored WBP overrides it automatically.
  */
-UCLASS(Abstract)
+UCLASS()
 class DEMOGAME_API UQuestLogWidget : public UUserWidget
 {
     GENERATED_BODY()
@@ -27,6 +30,7 @@ class DEMOGAME_API UQuestLogWidget : public UUserWidget
 public:
     virtual void NativeConstruct() override;
     virtual void NativeDestruct() override;
+    virtual TSharedRef<SWidget> RebuildWidget() override;
 
     /**
      * Rebuilds the quest list display from the current QuestSubsystem state.
@@ -42,6 +46,9 @@ protected:
     TObjectPtr<UVerticalBox> QuestList;
 
 private:
+    /** Build the legible default HUD panel (header + QuestList) when no designer layout exists. */
+    void BuildDefaultTree();
+
     UFUNCTION()
     void OnQuestActivated(FName QuestId);
 

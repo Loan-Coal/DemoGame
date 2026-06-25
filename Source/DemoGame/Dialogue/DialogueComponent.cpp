@@ -6,9 +6,11 @@
 #include "DialogueComponent.h"
 #include "NpcActorBase.h"
 #include "NpcFallbackLinesAsset.h"
+#include "NpcFallbackDefaults.h"
 #include "DialogueManager.h"
 #include "NpcEngineServiceSubsystem.h"
 #include "PlayerIdProvider.h"
+#include "World/GossipCacheSubsystem.h"
 #include "DemoGame.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
@@ -183,6 +185,7 @@ void UDialogueComponent::HandleResponse(const FNpcDialogueResponse& Response)
     }
 
     NotifyManagerOfResponse(NpcId, Response);
+    NotifyGossipCache(NpcId, Response);
 }
 
 void UDialogueComponent::NotifyManagerOfResponse(
@@ -216,6 +219,27 @@ void UDialogueComponent::NotifyManagerOfResponse(
         Response.FacialExpression.Type, Response.FacialExpression.Intensity);
 }
 
+void UDialogueComponent::NotifyGossipCache(
+    FName NpcId, const FNpcDialogueResponse& Response)
+{
+    UWorld* World = GetWorld();
+    UGossipCacheSubsystem* Gossip = World ? World->GetSubsystem<UGossipCacheSubsystem>() : nullptr;
+    if (!Gossip) return;
+
+    Gossip->MarkPlayerSpokeToNpc(NpcId);
+
+    // Check learned_facts for war event — add gossip entry for this NPC's hop.
+    const FString WarEventKey = GossipEventId::NorthernWarBegins.ToString();
+    for (const FString& Fact : Response.LearnedFacts)
+    {
+        if (Fact.Contains(WarEventKey))
+        {
+            Gossip->MarkGossipFromDialogue(NpcId, GossipEventId::NorthernWarBegins);
+            break;
+        }
+    }
+}
+
 void UDialogueComponent::HandleError(const FString& Error)
 {
     const FName NpcId = GetOwnerNpcId();
@@ -228,6 +252,11 @@ void UDialogueComponent::HandleError(const FString& Error)
     if (FallbackLinesAsset)
     {
         FallbackText = FallbackLinesAsset->GetFallbackLine(NpcId);
+    }
+    // Zero-setup default: if no DataAsset (or no entry for this NPC), use the built-in line.
+    if (FallbackText.IsEmpty())
+    {
+        FallbackText = NpcFallbackDefaults::GetLine(NpcId);
     }
 
     OnFallbackLine.Broadcast(NpcId, FallbackText);

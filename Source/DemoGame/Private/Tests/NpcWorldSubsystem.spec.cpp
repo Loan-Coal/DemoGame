@@ -85,6 +85,10 @@ void FNpcWorldSubsystemSpec::Define()
             Fake->bAdvanceClockSucceeds = false;
             UNpcWorldSubsystem* WS = MakeSubsystem(Fake);
 
+            // The failure path logs an Error by design; declare it expected so the framework does not
+            // auto-fail the test on the logged Error.
+            AddExpectedError(TEXT("ClockAdvance failed"), EAutomationExpectedErrorFlags::Contains, 0);
+
             // Should not crash even though the clock call fails.
             WS->OnPlayerArrived(FName(TEXT("loc_tavern")), true);
 

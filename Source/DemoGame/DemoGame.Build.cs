@@ -18,7 +18,8 @@ public class DemoGame : ModuleRules
 			"StateTreeModule",
 			"GameplayStateTreeModule",
 			"UMG",
-			"Slate"
+			"Slate",
+			"SlateCore"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] { "NpcEngineClient" });
@@ -28,6 +29,7 @@ public class DemoGame : ModuleRules
 			"DemoGame/NPC",
 			"DemoGame/Dialogue",
 			"DemoGame/World",
+			"DemoGame/UI",
 			"DemoGame/Variant_Platforming",
 			"DemoGame/Variant_Platforming/Animation",
 			"DemoGame/Variant_Combat",

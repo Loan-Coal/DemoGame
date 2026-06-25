@@ -5,6 +5,7 @@
 
 #include "Misc/AutomationTest.h"
 #include "DialogueManager.h"
+#include "DialogueComponent.h"
 #include "NpcDialogueService.h"
 #include "NpcEngineTypes.h"
 #include "FakeNpcDialogueService.h"
@@ -32,6 +33,15 @@ namespace
         Npc->NpcId = FName(TEXT("test_npc"));
         Npc->LocationId = TEXT("loc_test");
         Npc->DisplayName = TEXT("Tester");
+
+        // These specs cover the manager's DIRECT-service path (the manager-injected fake).
+        // In runtime the manager delegates to the NPC's UDialogueComponent when present; removing the
+        // component here forces the direct path. The component-delegation path needs a world for the
+        // component→manager broadcast and is covered by DialogueComponent.spec + PIE.
+        if (Npc->DialogueComponent)
+        {
+            Npc->DialogueComponent->DestroyComponent();
+        }
         return Npc;
     }
 }
