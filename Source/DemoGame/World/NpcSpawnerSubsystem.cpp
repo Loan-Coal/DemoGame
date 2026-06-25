@@ -26,9 +26,12 @@ namespace
     TArray<FText> MakeNoticeTiers()
     {
         return {
-            FText::FromString(TEXT("The northern roads are quiet. No news from the garrison.")),
-            FText::FromString(TEXT("Travelers have been talking about some skirmish up at the north pass. Hard to say what happened.")),
-            FText::FromString(TEXT("They say the whole northern garrison was wiped out in one night — a divine punishment, some claim.")),
+            // Tier 0 — pre-war silence
+            FText::FromString(TEXT("Thornfield's garrison post reports no unusual activity. The northern roads are quiet.")),
+            // Tier 1 — rumors spreading
+            FText::FromString(TEXT("Travelers passing through Thornfield speak of trouble at the northern pass — a skirmish, details unclear. The city guard remains tight-lipped.")),
+            // Tier 2 — distorted widely
+            FText::FromString(TEXT("Wild claims now paper Thornfield's boards: fallen garrisons, northern lords in flight, a war the Crown refuses to name. The guard says nothing.")),
         };
     }
 }
