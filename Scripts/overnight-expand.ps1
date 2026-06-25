@@ -59,6 +59,14 @@ if (-not (Get-Command claude -ErrorAction SilentlyContinue)) {
     Log "FATAL: 'claude' CLI not found on PATH. Install Claude Code or add it to PATH."
     exit 1
 }
+# The build gate (check.ps1 -WithBuild) CANNOT run while the editor holds the binaries via
+# Live Coding (UnrealBuildTool exits code 6). Refuse to start rather than spin on doomed builds.
+$ue = Get-Process -Name "UnrealEditor" -ErrorAction SilentlyContinue
+if ($ue) {
+    Log "FATAL: Unreal Editor is running (PID $($ue.Id)). Close it fully (Live Coding locks the"
+    Log "       build), then re-run. The -WithBuild gate cannot compile while the editor is open."
+    exit 1
+}
 if (-not (Test-Path $PromptFile)) {
     Log "FATAL: prompt file missing: $PromptFile"
     exit 1

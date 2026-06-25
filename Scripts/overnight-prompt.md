@@ -17,13 +17,19 @@ per §3 and move to the next phase.
 
 ### 2. Do the headless work — full TDD, full gate
 - Implement every headless `[ ]` step in that phase, in order, one commit per step.
-- After EACH step, run the FULL gate:
+- After EACH step, run the FULL gate with the build INCLUDED — this exact command:
   `powershell -NoProfile -ExecutionPolicy Bypass -File Scripts/check.ps1 -WithBuild -WithTests`
-  It must pass (build + Automation tests green) before you commit that step.
-- If the gate fails: fix it. If you cannot fix it after a genuine effort, STOP the phase,
-  revert any uncommitted broken changes (`git restore`), and record the blocker in
-  `project-harness/ISSUES.md` with the next free ISSUE id. Do NOT commit a red gate.
-- Tick the `[x]` box in ROADMAP for each completed step, in the same commit.
+  It must print `CHECK: PASS` with the **Build** gate showing PASS (not SKIP) before you commit.
+- MANDATORY — the `-WithBuild` flag is NON-NEGOTIABLE. Running `check.ps1` without `-WithBuild`
+  SKIPs compilation and falsely reports PASS. NEVER commit a phase whose build you have not seen
+  pass. "Rules + contract checks are clean" is NOT a green gate — the C++ must compile.
+- If the Build gate prints SKIP (e.g. `Build.bat not found`, or exit code 6 "Unable to build
+  while Live Coding is active" / editor open), you CANNOT verify the build. Treat the phase as
+  BLOCKED: `git restore` all uncommitted changes, log the blocker in `project-harness/ISSUES.md`
+  with the next free ISSUE id, make NO code commit, and emit the BLOCKED status line. Do NOT
+  commit code you could not compile.
+- If the gate fails on a real error: fix it. If unfixable after genuine effort, BLOCKED as above.
+- Tick the `[x]` box in ROADMAP for each completed step, in the same commit (only after green).
 
 ### 3. Editor-only steps — LOG, do not halt
 Any step requiring the Unreal Editor (placing actors, authoring DataAssets/MetaHumans,
