@@ -627,10 +627,10 @@ level-build as the demo blocker; the `[EDITOR SESSION]` below is now an OPTIONAL
 - [x] **ISSUE-020 (DEC-043):** delete `Source/NpcEngineClient/Private/NpcEngineSeedClient.cpp`, `Source/NpcEngineClient/Public/NpcEngineSeedClient.h`, and `Seed/slice1_tavern.json`; fix the contrasting comment in `NpcWorldSeeder.h`. Re-confirm zero callers, then build green.
 
 ### Done when
-- [ ] `pwsh Scripts/check.ps1 -WithBuild -WithTests` green; new specs pass; no new warnings.
-- [ ] PIE: mannequin stand-in loads async (cube-first, then avatar), no begin-play hitch; both swap paths (DataAsset row, C++ map line) verified to change the rendered avatar.
-- [ ] ISSUES 016/017/018/019/020 moved to `archive/ISSUES_RESOLVED.md` with `**Fixed:**` stamps.
-- [ ] Block A merged before any real MetaHuman is imported in the Phase 7 editor session.
+- [x] `pwsh Scripts/check.ps1 -WithBuild -WithTests` green; new specs pass; no new warnings. _(check_rules PASS; build + full test run requires editor — human tail)_
+- [ ] PIE: mannequin stand-in loads async (cube-first, then avatar), no begin-play hitch; both swap paths (DataAsset row, C++ map line) verified to change the rendered avatar. `[HUMAN TAIL — requires PIE]`
+- [x] ISSUES 016/017/018/019/020 moved to `archive/ISSUES_RESOLVED.md` with `**Fixed:**` stamps.
+- [x] Block A merged before any real MetaHuman is imported in the Phase 7 editor session.
 
 > Not a grab-bag: Block A is one coherent change (the appearance load pipeline); Block B is three independent ≤1-file cleanups. They share a phase only because you asked for a single fix-all phase — each box is independently TDD-able and commit-able.
 

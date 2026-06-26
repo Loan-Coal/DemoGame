@@ -36,3 +36,43 @@ Append-only. Fixed issues are moved here from `ISSUES.md` (keep the original ISS
 **Where:** `Source/DemoGame/DemoGamePlayerController.cpp` (`NpcSmokeTest`, `UFUNCTION(Exec)`); active GameMode `BP_ThirdPersonGameMode`
 **Description:** The PlayerController `Exec` smoke didn't route because `BP_ThirdPersonGameMode` doesn't use `ADemoGamePlayerController`.
 **Fix:** Added `Source/NpcEngineClient/Private/NpcEngineSmokeCommand.cpp` registering `NpcEngine.Smoke` as a GameMode-independent `FAutoConsoleCommandWithWorld` that drives `UNpcEngineRestClient` directly. Verified live headless: health OK + Mira reply, `DegradationLevel=full`, `=== NpcEngine.Smoke PASS ===`. The old PC `Exec NpcSmokeTest` remains as a convenience but is now redundant.
+
+## [FIXED] ISSUE-016: NpcAppearance.spec.cpp missing `#if WITH_DEV_AUTOMATION_TESTS` guard
+**Found:** 2026-06-25
+**Fixed:** 2026-06-26, in commit 1e86dd0 (Phase 12 B1)
+**Severity:** P3
+**Where:** `Source/DemoGame/Private/Tests/NpcAppearance.spec.cpp`
+**Description:** Only spec file without the `#if WITH_DEV_AUTOMATION_TESTS` guard; compiled into cooked/shipping builds.
+**Fix:** Wrapped NpcAppearance.spec.cpp and FacialExpressionMapper.spec.cpp with the guard. Added `missing_spec_automation_guard` rule to `Scripts/check_rules.py`.
+
+## [FIXED] ISSUE-017: ANpcGreyboxActor::TrySpawnAvatar synchronously loads the avatar class on the game thread
+**Found:** 2026-06-25
+**Fixed:** 2026-06-26, in commit 9b39022 (Phase 12 A4)
+**Severity:** P2
+**Where:** `Source/DemoGame/NPC/NpcGreyboxActor.cpp`
+**Description:** `LoadSynchronous()` in `BeginPlay` would hitch the game thread when a MetaHuman BP is wired.
+**Fix:** Replaced with `UAssetManager::GetStreamableManager().RequestAsyncLoad()` + completion lambda guarded by `TWeakObjectPtr`. `EndPlay` releases the `FStreamableHandle`.
+
+## [FIXED] ISSUE-018: FNpcSpawnRecord and FGreyboxLocation USTRUCT fields lack UPROPERTY
+**Found:** 2026-06-25
+**Fixed:** 2026-06-26, in commit 5c945b6 (Phase 12 A3)
+**Severity:** P3
+**Where:** `NpcSpawnerSubsystem.h` (`FNpcSpawnRecord`), `GreyboxWorldSubsystem.h` (`FGreyboxLocation`)
+**Description:** USTRUCT fields without `UPROPERTY` — not GC-tracked, not reflection-safe.
+**Fix:** Added `UPROPERTY()` to all 5 fields of `FNpcSpawnRecord` and all 4 fields of `FGreyboxLocation`.
+
+## [FIXED] ISSUE-019: Memory badge fallback can render a raw node ID to the player
+**Found:** 2026-06-25
+**Fixed:** 2026-06-26, in commit 4de45b6 (Phase 12 B2)
+**Severity:** P3
+**Where:** `Source/DemoGame/Dialogue/DialogueWidgetBase.cpp`
+**Description:** `FText::FromString(Memories[0])` terminal fallback exposed raw snake_case memory keys to the player.
+**Fix:** Terminal fallback replaced with `UE_LOG(Verbose)` + early return (badge stays `Collapsed`). Also corrected `MemoryBadgeLookup` UPROPERTY doc comment.
+
+## [FIXED] ISSUE-020: slice1_tavern.json tavern name conflicts with locked lore name
+**Found:** 2026-06-25
+**Fixed:** 2026-06-26, in commit 7be4736 (Phase 12 B3 / DEC-043)
+**Severity:** P3
+**Where:** `Seed/slice1_tavern.json`
+**Description:** Legacy seed file used "The Rusty Flagon"; DEC-017 locked the name to "The Broken Flagon".
+**Fix:** Retired `slice1_tavern.json` and `UNpcEngineSeedClient` entirely. `NpcEngine.SeedWorld` is the sole seed path.
