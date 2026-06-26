@@ -2,6 +2,9 @@
 // Module: Game
 // Purpose: Verifies data-driven appearance seam: mannequin by default, DataAsset override, no divergent sources.
 // Net I/O: no
+// rules-allow-file: hardcoded_npc_id — test data for the appearance resolver; not gameplay literals.
+
+#if WITH_DEV_AUTOMATION_TESTS
 
 #include "Misc/AutomationTest.h"
 #include "NPC/NpcAppearance.h"
@@ -100,3 +103,5 @@ void FNpcAppearanceSpec::Define()
         });
     });
 }
+
+#endif // WITH_DEV_AUTOMATION_TESTS

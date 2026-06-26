@@ -3,6 +3,8 @@
 // Purpose: Verifies FacialExpressionMapper mapping and null-safety contract.
 // Net I/O: no
 
+#if WITH_DEV_AUTOMATION_TESTS
+
 #include "Misc/AutomationTest.h"
 #include "FacialExpressionMapper.h"
 #include "NpcEngineTypes.h"
@@ -71,3 +73,5 @@ void FFacialExpressionMapperSpec::Define()
         });
     });
 }
+
+#endif // WITH_DEV_AUTOMATION_TESTS

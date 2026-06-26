@@ -206,6 +206,15 @@ def check_file(path, relpath, legacy):
         if count > limit:
             hits.append(("file_too_long", relpath, count))
 
+    # Spec guard rule: every Tests/*.spec.cpp must be wrapped in #if WITH_DEV_AUTOMATION_TESTS.
+    if (
+        "missing_spec_automation_guard" not in file_allowed
+        and relpath.endswith(".spec.cpp")
+        and "/Tests/" in relpath
+    ):
+        if not any("#if WITH_DEV_AUTOMATION_TESTS" in l for l in raw_lines):
+            hits.append(("missing_spec_automation_guard", relpath, 1))
+
     return hits
 
 
