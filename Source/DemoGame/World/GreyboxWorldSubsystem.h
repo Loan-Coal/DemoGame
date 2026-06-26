@@ -16,15 +16,19 @@ struct DEMOGAME_API FGreyboxLocation
     GENERATED_BODY()
 
     /** Stable location id (matches engine seed, e.g. "loc_tavern"). */
+    UPROPERTY()
     FName Id;
 
     /** Center offset relative to the world base (PlayerStart or origin). +X = forward. */
+    UPROPERTY()
     FVector CenterOffset = FVector::ZeroVector;
 
     /** Radius of the ANpcLocation overlap sphere in cm. */
+    UPROPERTY()
     float Radius = 500.f;
 
     /** When false the location's arrival does NOT advance the world clock (e.g. back rooms). */
+    UPROPERTY()
     bool bFiresTick = true;
 };
 

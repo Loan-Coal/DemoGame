@@ -23,12 +23,20 @@ struct FNpcSpawnRecord
 {
     GENERATED_BODY()
 
+    UPROPERTY()
     FName NpcId;
+
+    UPROPERTY()
     FString DisplayName;
+
+    UPROPERTY()
     FString LocationId;
+
+    UPROPERTY()
     FVector Offset = FVector::ZeroVector;
 
     /** Soft class pointer for the avatar Blueprint. Empty = use ANpcGreyboxActor cube stand-in. */
+    UPROPERTY()
     TSoftClassPtr<AActor> AvatarClass;
 };
 
