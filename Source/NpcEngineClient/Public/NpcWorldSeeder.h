@@ -27,7 +27,7 @@ using FNpcSeederHttpExec = TFunction<void(
  * Reads Seed/DemoWorld_v1.json and upserts every node and edge against the NPC Engine
  * REST graph endpoints. Each node upsert is preceded by a CheckNodeExists GET; if the node
  * already exists the upsert is skipped and the id is logged as "Skipped". Any non-2xx response
- * halts the seeder and fires OnError — unlike UNpcEngineSeedClient which continues on failure.
+ * halts the seeder and fires OnError — does not silently continue on failure.
  *
  * Seed order (dependency-respecting):
  *   Locations → Factions → Characters → Events (pre-edge nodes)

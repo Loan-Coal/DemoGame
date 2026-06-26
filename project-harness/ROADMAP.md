@@ -624,7 +624,7 @@ level-build as the demo blocker; the `[EDITOR SESSION]` below is now an OPTIONAL
 
 - [x] **ISSUE-016:** wrap `NpcAppearance.spec.cpp` in `#if WITH_DEV_AUTOMATION_TESTS … #endif` (match the other 11 specs). **Root cause:** add a rule to `Scripts/check_rules.py` that fails the gate if any `Source/**/Tests/*.spec.cpp` lacks the guard — so it can never silently recur.
 - [x] **ISSUE-019:** in `DialogueWidgetBase` `OnMemoriesRecalled`, replace the raw-id terminal fallback with: log `Verbose` + collapse the badge (`ESlateVisibility::Collapsed`) when no authored text is found. Never render a raw memory key to the player. (Unreachable with the current 20-id seed; this hardens the path for unknown future keys.)
-- [ ] **ISSUE-020 (DEC-043):** delete `Source/NpcEngineClient/Private/NpcEngineSeedClient.cpp`, `Source/NpcEngineClient/Public/NpcEngineSeedClient.h`, and `Seed/slice1_tavern.json`; fix the contrasting comment in `NpcWorldSeeder.h`. Re-confirm zero callers, then build green.
+- [x] **ISSUE-020 (DEC-043):** delete `Source/NpcEngineClient/Private/NpcEngineSeedClient.cpp`, `Source/NpcEngineClient/Public/NpcEngineSeedClient.h`, and `Seed/slice1_tavern.json`; fix the contrasting comment in `NpcWorldSeeder.h`. Re-confirm zero callers, then build green.
 
 ### Done when
 - [ ] `pwsh Scripts/check.ps1 -WithBuild -WithTests` green; new specs pass; no new warnings.
