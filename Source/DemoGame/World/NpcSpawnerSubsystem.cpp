@@ -6,6 +6,7 @@
 
 #include "NpcSpawnerSubsystem.h"
 #include "NPC/NpcAppearance.h"
+#include "NPC/NpcAppearanceData.h"
 #include "GreyboxWorldSubsystem.h"
 #include "NpcGreyboxActor.h"
 #include "NoticeBoard.h"
@@ -84,8 +85,22 @@ void UNpcSpawnerSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 
     const FVector Base = ResolveSpawnBase(InWorld);
 
-    for (const FNpcSpawnRecord& Record : GetRoster())
+    // Load optional DA_NpcAppearance for the DataAsset override tier (DEC-042).
+    // Falls through to the C++ default map when the asset does not exist yet.
+    UNpcAppearanceData* AppearanceData = nullptr;
     {
+        const TSoftObjectPtr<UNpcAppearanceData> SoftDA(
+            FSoftObjectPath(NpcAppearance::DataAssetPath));
+        if (!SoftDA.IsNull())
+        {
+            AppearanceData = SoftDA.LoadSynchronous();
+        }
+    }
+
+    for (FNpcSpawnRecord Record : GetRoster())
+    {
+        // Re-resolve with DataAsset tier so editor assignments override the C++ map.
+        Record.AvatarClass = NpcAppearance::GetAvatarClass(Record.NpcId, AppearanceData);
         SpawnNpc(InWorld, Record, Base);
     }
     SpawnNoticeBoards(InWorld, Base);
