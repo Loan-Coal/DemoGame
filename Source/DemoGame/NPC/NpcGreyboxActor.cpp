@@ -8,6 +8,7 @@
 #include "Components/TextRenderComponent.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Engine/StaticMesh.h"
+#include "Engine/AssetManager.h"
 #include "DemoGame.h"
 
 namespace NpcGreybox
@@ -55,17 +56,44 @@ void ANpcGreyboxActor::BeginPlay()
 
     if (!AvatarClass.IsNull())
     {
-        TrySpawnAvatar();
+        BeginAsyncAvatarLoad();
     }
 }
 
-void ANpcGreyboxActor::TrySpawnAvatar()
+void ANpcGreyboxActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-    UClass* LoadedClass = AvatarClass.LoadSynchronous();
+    // Release the in-flight load handle so a mid-load destroy cannot fire a stale callback.
+    if (AvatarStreamableHandle.IsValid())
+    {
+        AvatarStreamableHandle->ReleaseHandle();
+        AvatarStreamableHandle.Reset();
+    }
+    Super::EndPlay(EndPlayReason);
+}
+
+void ANpcGreyboxActor::BeginAsyncAvatarLoad()
+{
+    TWeakObjectPtr<ANpcGreyboxActor> WeakThis = this;
+    AvatarStreamableHandle = UAssetManager::GetStreamableManager().RequestAsyncLoad(
+        AvatarClass.ToSoftObjectPath(),
+        FStreamableDelegate::CreateLambda([WeakThis]()
+        {
+            // Guard: actor may have been destroyed while the load was in flight.
+            if (ANpcGreyboxActor* Self = WeakThis.Get())
+            {
+                Self->OnAvatarLoaded();
+            }
+        }));
+}
+
+void ANpcGreyboxActor::OnAvatarLoaded()
+{
+    UClass* LoadedClass = AvatarClass.Get();
     if (!LoadedClass)
     {
         UE_LOG(LogDemoGame, Warning,
-            TEXT("NpcGreyboxActor: failed to load AvatarClass for NpcId=%s"), *NpcId.ToString());
+            TEXT("NpcGreyboxActor: async load produced null class for NpcId=%s"),
+            *NpcId.ToString());
         return;
     }
 
@@ -83,7 +111,7 @@ void ANpcGreyboxActor::TrySpawnAvatar()
 
     Avatar->AttachToActor(this, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
     BodyMesh->SetVisibility(false, /*bPropagateToChildren*/ true);
-    NameLabel->SetVisibility(false);
+    // NameLabel stays visible: NPCs must remain identifiable above the mannequin stand-in.
 
     UE_LOG(LogDemoGame, Log,
         TEXT("NpcGreyboxActor: avatar spawned NpcId=%s Class=%s"),
