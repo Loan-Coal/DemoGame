@@ -119,8 +119,9 @@ The mock HTTP transport must match the real client's contract: same fallback on 
 path. A mock that returns success where the real client would fall back is invalid.
 
 ## Project management files — canonical locations
-`project-harness/ISSUES.md`, `DECISIONS.md`, `ROADMAP.md`, `PATTERNS.md` are the only copies. Never
-create root-level duplicates.
+`project-harness/ISSUES.md`, `DECISIONS.md`, `ROADMAP.md`, `PATTERNS.md`, `UNREAL_EDITOR_PLAYBOOK.md`,
+`HUMAN_VERIFICATION.md`, `appendix-clothing-blender.md`, `archive/ROADMAP_DONE.md` are the only copies.
+Never create root-level duplicates.
 
 ## Issues log
 `ISSUES.md` is the persistent issue log; every session reads and updates it.

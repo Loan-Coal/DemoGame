@@ -3,6 +3,13 @@
 Append-only. Each entry: context, decision, rationale. Never edit a past decision — supersede it with a
 new entry that references the old one.
 
+## DEC-044: Doc restructure — single authoritative editor playbook
+**Date:** 2026-06-26
+**Context:** Editor instructions were scattered across ROADMAP.md ([EDITOR SESSION] blocks in every phase), HUMAN_VERIFICATION.md (mixed step-by-step + live gates), and various asset shortlist files. A new contributor had no single starting point for Unreal Editor work. ROADMAP.md had grown to 684 lines blending C++ checklists with editor art steps.
+**Decision:** Introduce `project-harness/UNREAL_EDITOR_PLAYBOOK.md` as the single authoritative source for all editor work (dependency-ordered §0–§6, exhaustive bind-name contract table, asset acquisition, level dressing, lighting, audio, final acceptance run). Move archived C++ checklist history to `project-harness/archive/ROADMAP_DONE.md`. Slim ROADMAP.md to: bring-up status, Phase 12 (pending code), Acceptance Criteria, and pointers to playbook + HUMAN_VERIFICATION. Rewrite HUMAN_VERIFICATION.md to end-result live-LLM gates and playtest only, with pointers into the playbook for how-to. Optional Blender clothing workflow in `project-harness/appendix-clothing-blender.md`.
+**Rationale:** One document per concern. A new contributor follows UNREAL_EDITOR_PLAYBOOK.md start→finish using only free downloads and reaches the §6 acceptance run. C++ history is preserved in the archive, not discarded. No editor instructions remain duplicated across files.
+**Files touched:** `UNREAL_EDITOR_PLAYBOOK.md` (new), `appendix-clothing-blender.md` (new), `archive/ROADMAP_DONE.md` (new), `ROADMAP.md` (slimmed), `HUMAN_VERIFICATION.md` (rewritten), `CLAUDE.md` (project management files list updated).
+
 ## DEC-043: Retire UNpcEngineSeedClient + slice1_tavern.json — single seed source of truth
 **Date:** 2026-06-26
 **Context:** Two seeder implementations coexist. `UNpcWorldSeeder` (replays `Seed/DemoWorld_v1.json`, registered as `NpcEngine.SeedWorld`, idempotent, halts-on-error) superseded the older `UNpcEngineSeedClient` (replays `Seed/slice1_tavern.json`, continues-on-failure). No console command registers `UNpcEngineSeedClient`; its only remaining reference is a contrasting comment in `NpcWorldSeeder.h`. `slice1_tavern.json` also carries a stale tavern name ("The Rusty Flagon" vs the DEC-017-locked "The Broken Flagon"), so running it would seed wrong data (ISSUE-020).
