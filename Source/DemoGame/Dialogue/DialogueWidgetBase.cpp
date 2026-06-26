@@ -307,7 +307,7 @@ void UDialogueWidgetBase::OnMemoriesRecalledHandler(FName /*NpcId*/, TArray<FStr
     }
 
     // Show the first memory badge (greybox: one badge at a time).
-    // Lookup priority: DA_MemoryBadgeLookup DataAsset → C++ stubs (MemoryBadgeDefaults) → raw ID.
+    // Lookup priority: DA_MemoryBadgeLookup DataAsset → C++ stubs (MemoryBadgeDefaults) → collapse.
     FText BadgeText;
     const FName MemoryKey(*Memories[0]);
     if (MemoryBadgeLookup)
@@ -320,7 +320,10 @@ void UDialogueWidgetBase::OnMemoriesRecalledHandler(FName /*NpcId*/, TArray<FStr
     }
     if (BadgeText.IsEmpty())
     {
-        BadgeText = FText::FromString(Memories[0]);
+        // No authored text found — collapse silently. Never expose raw snake_case ids to the player.
+        UE_LOG(LogDemoGame, Verbose,
+            TEXT("OnMemoriesRecalled: no badge text for key=%s — badge suppressed"), *MemoryKey.ToString());
+        return;
     }
 
     MemoriesBadge->SetText(BadgeText);
