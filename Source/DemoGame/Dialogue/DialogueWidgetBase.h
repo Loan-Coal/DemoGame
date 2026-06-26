@@ -73,7 +73,8 @@ public:
 
     /**
      * DataAsset mapping memory_id → display badge text.
-     * Assign DA_MemoryBadgeLookup in the editor. If unset, raw memory ids are shown.
+     * Resolution order: DataAsset lookup → MemoryBadgeDefaults C++ stubs → badge collapsed.
+     * If unset (or key absent), the badge is hidden — raw memory ids are never shown to the player.
      */
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Dialogue|Config")
     TObjectPtr<UMemoryBadgeLookupAsset> MemoryBadgeLookup;
