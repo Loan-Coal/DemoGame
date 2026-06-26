@@ -108,6 +108,46 @@ The body skeleton (`metahuman_base_skel`, an extended UE5-Mannequin skeleton) is
 **Why deferred:** Task B is research-only; impact is verified per-asset only by a human skin test in-editor.
 **To fix:** Prefer **parametric / Chaos Outfit Asset** items (PolyWear, GrubyCommander — advertised "MetaHuman Creator parametric", recent 2025 updates) as the latest-MetaHuman-safe path. For fixed skeletal-mesh items (incl. all free DevonLux): keep the MetaHuman body at (or near) the asset's authored body type, attach via SkeletalMeshComponent + Leader Pose (not as a validated wardrobe item, or disable validation), and correct the foot height if shoes clip the floor. Confirm each asset's last-updated date is post-5.6 before relying on it. This is the strongest reason the recommended *quality* path is parametric, and a real caveat on the free path.
 
+## ISSUE-016: NpcAppearance.spec.cpp missing `#if WITH_DEV_AUTOMATION_TESTS` guard
+**Found:** 2026-06-25
+**Severity:** P3
+**Where:** `Source/DemoGame/Private/Tests/NpcAppearance.spec.cpp`
+**Description:** This is the only `*.spec.cpp` in the project without the `#if WITH_DEV_AUTOMATION_TESTS` / `#endif` wrapper (all 11 others have it). The `DEFINE_SPEC` body therefore compiles into Test/Shipping/cooked configurations instead of editor/dev only. Caught reviewing the Phase 7 appearance seam; gate is green because dev builds compile it fine.
+**Why deferred:** No correctness impact in the Development editor build the gate runs; affects only cooked-build hygiene. One-line wrap.
+**To fix:** Wrap the includes-through-`Define()` body in `#if WITH_DEV_AUTOMATION_TESTS` … `#endif`, matching `GreyboxWorld.spec.cpp`.
+
+## ISSUE-017: ANpcGreyboxActor::TrySpawnAvatar synchronously loads the avatar class on the game thread
+**Found:** 2026-06-25
+**Severity:** P2
+**Where:** `Source/DemoGame/NPC/NpcGreyboxActor.cpp` (`TrySpawnAvatar`, `AvatarClass.LoadSynchronous()`)
+**Description:** The avatar swap path calls `LoadSynchronous()` inside `BeginPlay`. Harmless today (registry is empty → cubes only), but this is exactly the code that fires once a MetaHuman BP path is added to `NpcAppearance`. Synchronously loading a multi-MB MetaHuman skeletal mesh on the game thread will cause a visible begin-play hitch, against the "never block the game thread" rule.
+**Why deferred:** Unreachable until the first MetaHuman is wired (Phase 7 editor session). No impact in greybox.
+**To fix:** Before wiring the first real avatar, convert to `UAssetManager::GetStreamableManager().RequestAsyncLoad(AvatarClass.ToSoftObjectPath(), …)` with a completion callback that spawns + hides the cube on the game thread.
+
+## ISSUE-018: FNpcSpawnRecord and FGreyboxLocation USTRUCT fields lack UPROPERTY
+**Found:** 2026-06-25
+**Severity:** P3
+**Where:** `Source/DemoGame/World/NpcSpawnerSubsystem.h` (`FNpcSpawnRecord`), `Source/DemoGame/World/GreyboxWorldSubsystem.h` (`FGreyboxLocation`)
+**Description:** Both structs declare `USTRUCT()` + `GENERATED_BODY()` but none of their fields carry `UPROPERTY`. The `TSoftClassPtr<AActor> AvatarClass` in `FNpcSpawnRecord` is therefore not GC-tracked, and neither struct is reflection/serialise-safe — inconsistent with the project's "USTRUCT for boundary data with UPROPERTY" rule.
+**Why deferred:** Both structs are short-lived (rebuilt each `GetRoster()`/`GetLayout()` call) and consumed purely in C++, so the GC/reflection risk is latent, not active.
+**To fix:** Add `UPROPERTY()` to every field of both structs (or drop `USTRUCT`/`GENERATED_BODY` and use plain structs if reflection is genuinely never needed).
+
+## ISSUE-019: Memory badge fallback can render a raw node ID to the player
+**Found:** 2026-06-25
+**Severity:** P3
+**Where:** `Source/DemoGame/Dialogue/DialogueWidgetBase.cpp` (~line 321–323, `OnMemoriesRecalled` handler)
+**Description:** The badge lookup chain is DataAsset → `MemoryBadgeDefaults` → `FText::FromString(Memories[0])` (raw ID). `MemoryBadgeDefaults.h` states raw IDs must never be shown to the player. All 20 seed node IDs are covered so the raw branch is currently unreachable, but a future/unknown engine memory key would surface its raw snake_case id in the UI. The header comment on `MemoryBadgeLookup` also still says "raw memory ids are shown" when unset, which is now inaccurate (C++ defaults run first).
+**Why deferred:** Unreachable with the current seed; cosmetic for unknown future keys. No crash.
+**To fix:** At the final tier, collapse the badge (or show a generic "Recalled a memory") instead of the raw id, and correct the `MemoryBadgeLookup` UPROPERTY doc comment.
+
+## ISSUE-020: slice1_tavern.json tavern name "The Rusty Flagon" conflicts with locked "The Broken Flagon"
+**Found:** 2026-06-25
+**Severity:** P3
+**Where:** `Seed/slice1_tavern.json`
+**Description:** DEC-017 locked the tavern name to "The Broken Flagon" and `Seed/DemoWorld_v1.json` plus all Phase 10 authored text use it. The legacy `slice1_tavern.json` (replayed by the `NpcEngine.Seed` console command) still says "The Rusty Flagon", so running that command against a fresh engine seeds the wrong name.
+**Why deferred:** `NpcEngine.SeedWorld` (DemoWorld_v1.json) is the canonical path; the legacy command is not used in the golden path.
+**To fix:** Update `slice1_tavern.json` tavern descriptor to "The Broken Flagon", or retire `slice1_tavern.json` / the `NpcEngine.Seed` command in favour of `NpcEngine.SeedWorld`.
+
 <!--
 IDs are monotonic and never reused — check this file AND archive/ISSUES_RESOLVED.md before numbering.
 When fixed: mark `## [FIXED] ISSUE-NNN`, add `**Fixed:** YYYY-MM-DD, in <commit/task>`, then move the

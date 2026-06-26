@@ -3,6 +3,18 @@
 Append-only. Each entry: context, decision, rationale. Never edit a past decision — supersede it with a
 new entry that references the old one.
 
+## DEC-043: Retire UNpcEngineSeedClient + slice1_tavern.json — single seed source of truth
+**Date:** 2026-06-26
+**Context:** Two seeder implementations coexist. `UNpcWorldSeeder` (replays `Seed/DemoWorld_v1.json`, registered as `NpcEngine.SeedWorld`, idempotent, halts-on-error) superseded the older `UNpcEngineSeedClient` (replays `Seed/slice1_tavern.json`, continues-on-failure). No console command registers `UNpcEngineSeedClient`; its only remaining reference is a contrasting comment in `NpcWorldSeeder.h`. `slice1_tavern.json` also carries a stale tavern name ("The Rusty Flagon" vs the DEC-017-locked "The Broken Flagon"), so running it would seed wrong data (ISSUE-020).
+**Decision:** Delete `Source/NpcEngineClient/Private/NpcEngineSeedClient.cpp`, `Source/NpcEngineClient/Public/NpcEngineSeedClient.h`, and `Seed/slice1_tavern.json`. Update the contrasting comment in `NpcWorldSeeder.h`. `DemoWorld_v1.json` + `UNpcWorldSeeder` (`NpcEngine.SeedWorld`) is the sole seed path. Planned in Phase 12 Block B.
+**Rationale:** Removes duplicate, orphaned seeder code and a divergent data file — one source of truth, less surface to re-diverge. Confirmed zero callers before deletion (CLAUDE.md "stop and confirm before deleting non-temp files"; user pre-approved via planning question 2026-06-26).
+
+## DEC-042: Hybrid NPC appearance registry — DataAsset overrides C++ default map (refines DEC-039)
+**Date:** 2026-06-26
+**Context:** DEC-039 chose a hardcoded C++ `TMap` in `NpcAppearance.cpp` for cube→MetaHuman swaps, deliberately so the swap stays headless (Claude edits one line, no editor). That trades away in-editor, no-recompile swapping that artists want. The project already uses a DataAsset-override → C++-default chain for fallback lines (`NpcFallbackDefaults`) and memory badges (`MemoryBadgeDefaults`).
+**Decision:** Introduce `UNpcAppearanceData` (`DA_NpcAppearance`) holding `UPROPERTY TMap<FName, TSoftClassPtr<AActor>>`. Resolution order at spawn: `DA_NpcAppearance` entry (if set) → C++ default map (`NpcAppearance`) → empty (cube). This **refines, not reverses, DEC-039**: the C++ default map remains, so headless one-line swaps still work; the DataAsset is an additive editor-side override. Planned in Phase 12 Block A.
+**Rationale:** Best of both — artists swap in-editor with no recompile, Claude still swaps in code headlessly, and it reuses the established override→default pattern. Consistent with OCP (new NPCs/appearances via data, not code edits).
+
 ## DEC-041: Phase 7 camera blend — no-op when no UCameraComponent; thinking look-at deferred to editor AnimBP
 **Date:** 2026-06-25
 **Context:** `UDialogueComponent::BlendCameraToNpc` was written to find a `UCameraComponent` named/attached at `DialogueCamSocket` on the NPC actor. Greybox NPCs are static mesh cubes — they have no UCameraComponent. The Phase 7 ROADMAP item for "thinking state look-at" requires AnimBP bool wiring, which is an editor task.

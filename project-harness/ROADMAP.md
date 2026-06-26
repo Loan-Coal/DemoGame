@@ -601,6 +601,41 @@ level-build as the demo blocker; the `[EDITOR SESSION]` below is now an OPTIONAL
 
 ---
 
+## Phase 12 — Appearance Pipeline Hardening + Cleanup Sweep
+
+**Goal:** Make the cube→MetaHuman swap fast, artist-friendly, and headless-friendly; clear five reviewer-found defects (ISSUE-016/017/018/019/020) at their root cause.
+**Independently demoable:** A stock UE5 mannequin registered as a stand-in avatar loads **asynchronously** at begin-play with no frame hitch — the cube shows first, then is replaced by the mannequin when the load completes. Swapping an NPC's avatar works two ways: edit `DA_NpcAppearance` in-editor (no recompile) **or** edit the C++ default map (headless).
+**Prerequisites:** Phase 7 C++ block (done). **Block A must merge before the Phase 7 `[EDITOR SESSION]` first MetaHuman import** — it is the load path those assets will use.
+**Quality gate:** `pwsh Scripts/check.ps1 -WithBuild -WithTests`
+**Decisions:** DEC-042 (hybrid appearance registry, refines DEC-039), DEC-043 (retire legacy seeder). Resolves ISSUE-016/017/018/019/020.
+
+### Block A — Appearance pipeline (architecture; the "easy swap" lever)
+
+- [x] **`UNpcAppearanceData` DataAsset** (`DA_NpcAppearance`, DemoGame module, Net I/O: no): `UPROPERTY TMap<FName, TSoftClassPtr<AActor>> AvatarByNpcId`. Doxygen + file header. Soft refs only (no hard avatar refs that bloat the cooked graph).
+- [x] **Hybrid resolver** (DEC-042): resolution order `DA_NpcAppearance` (if assigned) → `NpcAppearance` C++ default map → empty/cube. The optional `DA_NpcAppearance` is referenced via a soft path the spawner loads (no hardcoded `/Game/...` literal in gameplay logic — path lives in one named config constant or the DataAsset is assigned on a thin BP data subclass). C++ default map stays, so headless one-line swaps still work.
+  - [x] Write failing Automation Spec first (DemoGame/Tests, pure): DataAsset entry overrides the C++ default; C++ default applies when DataAsset has no entry/none assigned; unknown id → empty; roster `AvatarClass` matches the resolver (no divergent second source — extends `NpcAppearance.spec.cpp`).
+- [x] **`UPROPERTY` on `FNpcSpawnRecord` and `FGreyboxLocation`** (ISSUE-018): annotate every field; keep `USTRUCT`/`GENERATED_BODY`. Required for the DataAsset rows and reflection-consistency.
+- [x] **Async avatar load** in `ANpcGreyboxActor` (ISSUE-017): replace `LoadSynchronous()` with `UAssetManager::GetStreamableManager().RequestAsyncLoad(AvatarClass.ToSoftObjectPath(), …)`. Cube stays visible until the callback fires (progressive reveal); on completion (game thread) spawn + attach at feet, hide cube + label. Guard with a weak self-ptr; cancel/release the streamable handle in `EndPlay` so an actor destroyed mid-load can't crash. Function ≤40 lines (extract a completion helper).
+  - [ ] Functional Automation test (DemoGame/Tests): an actor with a set `AvatarClass` spawns the avatar and hides the cube after the async load resolves; an actor destroyed before load completion does not crash (handle released). `[HUMAN TAIL — requires PIE world context]`
+- [x] **Mannequin as the default humanoid** (DEC-042; until MetaHumans land): register the stock UE5 `SKM_Manny`/ThirdPerson BP as the C++ **default-map** avatar for **all 5 NPCs**, so every NPC renders as a humanoid (not a cube) out of the box and the full async-load → attach → cube-hide path runs and is verified now. This is the standing default, not a temporary test double — each NPC's row is overridden (DataAsset or C++) as its MetaHuman arrives. Keep the floating name label visible above the mannequin so NPCs stay identifiable until faces exist.
+- [ ] **Doc + comment fixes:** correct the `MemoryBadgeLookup` UPROPERTY comment in `DialogueWidgetBase.h` (C++ defaults run before the raw-id fallback now — see Block B); update `NpcAppearance.h/.cpp` header comments to describe the hybrid chain.
+
+### Block B — Hygiene & dead-code sweep
+
+- [ ] **ISSUE-016:** wrap `NpcAppearance.spec.cpp` in `#if WITH_DEV_AUTOMATION_TESTS … #endif` (match the other 11 specs). **Root cause:** add a rule to `Scripts/check_rules.py` that fails the gate if any `Source/**/Tests/*.spec.cpp` lacks the guard — so it can never silently recur.
+- [ ] **ISSUE-019:** in `DialogueWidgetBase` `OnMemoriesRecalled`, replace the raw-id terminal fallback with: log `Verbose` + collapse the badge (`ESlateVisibility::Collapsed`) when no authored text is found. Never render a raw memory key to the player. (Unreachable with the current 20-id seed; this hardens the path for unknown future keys.)
+- [ ] **ISSUE-020 (DEC-043):** delete `Source/NpcEngineClient/Private/NpcEngineSeedClient.cpp`, `Source/NpcEngineClient/Public/NpcEngineSeedClient.h`, and `Seed/slice1_tavern.json`; fix the contrasting comment in `NpcWorldSeeder.h`. Re-confirm zero callers, then build green.
+
+### Done when
+- [ ] `pwsh Scripts/check.ps1 -WithBuild -WithTests` green; new specs pass; no new warnings.
+- [ ] PIE: mannequin stand-in loads async (cube-first, then avatar), no begin-play hitch; both swap paths (DataAsset row, C++ map line) verified to change the rendered avatar.
+- [ ] ISSUES 016/017/018/019/020 moved to `archive/ISSUES_RESOLVED.md` with `**Fixed:**` stamps.
+- [ ] Block A merged before any real MetaHuman is imported in the Phase 7 editor session.
+
+> Not a grab-bag: Block A is one coherent change (the appearance load pipeline); Block B is three independent ≤1-file cleanups. They share a phase only because you asked for a single fix-all phase — each box is independently TDD-able and commit-able.
+
+---
+
 ## Acceptance Criteria — Demo v1
 
 > Source: `docs/game_design_roadmap.md` §14. All items must pass before the demo is considered complete. No partial credit.

@@ -10,12 +10,20 @@
 
 namespace NpcAppearance
 {
-    // C++ default map — EMPTY until MetaHumans land; every NPC defaults to a cube stand-in.
-    // To swap one NPC headlessly, add one row pointing at the imported BP class path, e.g.:
-    //   AppearanceMap.Add("mira_innkeeper",
-    //       FSoftClassPath(TEXT("/Game/MetaHumans/Mira/BP_Mira.BP_Mira_C")));
-    // No editor step required — rebuilding DemoGame is sufficient (DEC-039).
-    static TMap<FName, FSoftClassPath> AppearanceMap;
+    // C++ default map — Mannequin stand-in for all 5 NPCs (DEC-042 Phase 12 A5).
+    // Each entry is overridden (DataAsset or this map) as a MetaHuman BP is imported.
+    // Async load path handles missing assets gracefully (cube stays visible).
+    // rules-allow: hardcoded_npc_id — these ARE the sanctioned data-definition rows.
+    static const FSoftClassPath MannequinPath(
+        TEXT("/Game/ThirdPerson/Blueprints/BP_ThirdPersonCharacter.BP_ThirdPersonCharacter_C"));
+
+    static TMap<FName, FSoftClassPath> AppearanceMap = {
+        { FName("mira_innkeeper"),  MannequinPath },
+        { FName("lira_fence"),      MannequinPath },
+        { FName("aldric_merchant"), MannequinPath },
+        { FName("captain_sorn"),    MannequinPath },
+        { FName("old_henryk"),      MannequinPath },
+    };
 
     TSoftClassPtr<AActor> GetAvatarClass(FName NpcId, const UNpcAppearanceData* DataAsset)
     {

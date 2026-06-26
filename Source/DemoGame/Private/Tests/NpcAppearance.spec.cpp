@@ -1,6 +1,6 @@
 // File: NpcAppearance.spec.cpp
 // Module: Game
-// Purpose: Verifies data-driven appearance seam: cube by default, DataAsset override, no divergent sources.
+// Purpose: Verifies data-driven appearance seam: mannequin by default, DataAsset override, no divergent sources.
 // Net I/O: no
 
 #include "Misc/AutomationTest.h"
@@ -15,14 +15,14 @@ void FNpcAppearanceSpec::Define()
 {
     Describe("GetAvatarClass — C++ default map", [this]()
     {
-        It("returns empty for all rostered NPC ids by default (cube stand-in)", [this]()
+        It("returns mannequin path for all rostered NPC ids (Phase 12 A5 standing default)", [this]()
         {
             for (const FNpcSpawnRecord& Record : UNpcSpawnerSubsystem::GetRoster())
             {
                 const TSoftClassPtr<AActor> AvatarClass =
                     NpcAppearance::GetAvatarClass(Record.NpcId);
-                TestTrue(
-                    FString::Printf(TEXT("%s should default to empty (cube)"),
+                TestFalse(
+                    FString::Printf(TEXT("%s should have a registered avatar class (mannequin)"),
                         *Record.NpcId.ToString()),
                     AvatarClass.IsNull());
             }
@@ -65,25 +65,25 @@ void FNpcAppearanceSpec::Define()
             DA->RemoveFromRoot();
         });
 
-        It("falls through to C++ default map when DataAsset has no entry for the NPC", [this]()
+        It("falls through to C++ default map (mannequin) when DataAsset has no entry for the NPC", [this]()
         {
             UNpcAppearanceData* DA = NewObject<UNpcAppearanceData>();
             DA->AddToRoot();
-            // No entry for lira_fence → falls through to C++ default (currently empty → cube)
+            // No DataAsset entry for lira_fence → falls through to C++ default (mannequin)
             const TSoftClassPtr<AActor> Result =
                 NpcAppearance::GetAvatarClass(FName("lira_fence"), DA);
-            TestTrue("no DataAsset entry → C++ default (empty = cube)",
+            TestFalse("no DataAsset entry → C++ default mannequin (non-empty)",
                 Result.IsNull());
             DA->RemoveFromRoot();
         });
 
-        It("nullptr DataAsset falls through to C++ default (backward compatible)", [this]()
+        It("nullptr DataAsset falls through to C++ default mannequin (backward compatible)", [this]()
         {
-            TestTrue("nullptr DataAsset → C++ default (currently empty = cube)",
+            TestFalse("nullptr DataAsset → C++ default mannequin",
                 NpcAppearance::GetAvatarClass(FName("captain_sorn"), nullptr).IsNull());
         });
 
-        It("DataAsset with no entries for any NPC returns C++ default for all rostered NPCs", [this]()
+        It("DataAsset with no entries returns C++ default mannequin for all rostered NPCs", [this]()
         {
             UNpcAppearanceData* DA = NewObject<UNpcAppearanceData>();
             DA->AddToRoot();
@@ -91,8 +91,9 @@ void FNpcAppearanceSpec::Define()
             {
                 const TSoftClassPtr<AActor> Result =
                     NpcAppearance::GetAvatarClass(Record.NpcId, DA);
-                TestTrue(
-                    FString::Printf(TEXT("empty DA → C++ default for %s"), *Record.NpcId.ToString()),
+                TestFalse(
+                    FString::Printf(TEXT("empty DA → C++ default mannequin for %s"),
+                        *Record.NpcId.ToString()),
                     Result.IsNull());
             }
             DA->RemoveFromRoot();
